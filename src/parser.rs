@@ -86,9 +86,9 @@ impl <'a> Required<'a> {
 
 #[derive(Debug, Clone)]
 enum OptionalName<'a> {
-    Short(&'a str),
+    Short(char),
     Long(&'a str),
-    ShortAndLong(&'a str, &'a str),
+    ShortAndLong(char, &'a str),
 }
 
 #[derive(Debug)]
@@ -183,29 +183,37 @@ impl <'a> ParsedArguments<'a> {
 // ========================== Argument constructors ============================
 // =============================================================================
 
-/// An argument for the parser
+/// An argument for the parser.
 pub struct Argument;
 
 impl <'a> Argument {
+    /// Creates a builder for a new required argument with the given name.
     pub fn required(name: &'a str) -> Required<'a> {
         Required {
             name: name
         }
     }
     
-    pub fn optional_short(name: &'a str) -> Optional {
+    /// Creates a builder for an optional argument with the given short name
+    /// prefixed by '-' (eg '-a').
+    pub fn optional_short(name: char) -> Optional<'a> {
         Optional {
             name: OptionalName::Short(name)
         }
     }
     
+    /// Creates a builder for an optional argument with the given long name
+    /// prefixed by '--' (eg '--all').
     pub fn optional_long(name: &'a str) -> Optional<'a> {
         Optional {
             name: OptionalName::Long(name)
         }
     }
     
-    pub fn optional_short_and_long(short_name: &'a str, long_name: &'a str) 
+    /// Creates a builder for an optional argument with the given short and
+    /// long names, where the short name is prefixed by '-' and the long name by 
+    /// '--'.
+    pub fn optional_short_and_long(short_name: char, long_name: &'a str) 
             -> Optional<'a> {
         Optional {
             name: OptionalName::ShortAndLong(short_name, long_name)
