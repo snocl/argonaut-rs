@@ -44,9 +44,25 @@ pub struct RequiredSingleArgument<'a> {
 }
 
 impl <'a> RequiredSingleArgument<'a> {
-    pub fn add_to(&self, parser: &mut ArgumentParser<'a>) -> RequiredSingleTag {
-        let id = parser.add_required_single(self);
-        RequiredSingleTag { id: id }
+    pub fn add_to(&self, parser: &mut ArgumentParser<'a>) 
+            -> Result<RequiredSingleTag, String> {
+        let res = parser.add_required_single(self);
+        res.map(|id| RequiredSingleTag { id: id })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RequiredMultipleArguments<'a> {
+    name: &'a str,
+    argtype: MultipleArguments,
+    desc: ArgumentDescription<'a>,
+}
+
+impl <'a> RequiredMultipleArguments<'a> {
+    pub fn add_to(&self, parser: &mut ArgumentParser<'a>) 
+            -> Result<RequiredMultiplesTag, String> {
+        let res = parser.add_required_multiple(self);
+        res.map(|id| RequiredMultiplesTag { id: id })
     }
 }
 
@@ -91,8 +107,21 @@ pub struct RequiredSingleTag {
 }
 
 impl RequiredSingleTag {
+    /// Gets the value of this tag in the parsed arguments
     pub fn get<'a>(&self, arguments: &ParsedArguments<'a>) -> &'a str {
-        arguments.get_required_single(self.id)
+        arguments.get_required_single(&self.id)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RequiredMultiplesTag {
+    id: Id
+}
+
+impl RequiredMultiplesTag {
+    /// Gets the value of this tag in the parsed arguments
+    pub fn get<'a>(&self, arguments: &'a ParsedArguments<'a>) -> &Vec<&'a str> {
+        arguments.get_required_multiple(&self.id)
     }
 }
 
@@ -104,15 +133,49 @@ impl RequiredSingleTag {
 #[derive(Debug)]
 pub struct ParsedArguments<'a> {
     req_singles: HashMap<Id, &'a str>,
-    //req_multiple: Vec<&'a str>,
-    //opt_singles: HashMap<Id, Option<&'a str>>,
-    //opt_multiples: HashMap<Id, Option<Vec<&'a str>>>,
-    //opt_flags: HashMap<Id, bool>,
+    req_vararg: Option<(Id, Vec<&'a str>)>,
+    opt_singles: HashMap<Id, Option<&'a str>>,
+    opt_multiples: HashMap<Id, Option<Vec<&'a str>>>,
+    opt_flags: HashMap<Id, bool>,
 }
 
 impl <'a> ParsedArguments<'a> {
-    fn get_required_single(&self, id: Id) -> &'a str {
-        "Yay!"
+    fn get_required_single(&self, id: &Id) -> &'a str {
+        self.req_singles.get(id).unwrap_or_else(|| panic!(format!(
+            "No required single argument found with id {}", id
+        )))
+    }
+    
+    fn get_required_multiple(&'a self, id: &Id) -> &'a Vec<&'a str> {
+        if let Some((ref vid, ref args)) = self.req_vararg {
+            if vid == id {
+                args
+            } else {
+                panic!(format!("The given tag has the wrong id for the
+                    multiple-parameter argument ({} != {})!", id, vid
+                ))
+            }
+        } else {
+            panic!("No multiple-parameter argument was defined");
+        }
+    }
+    
+    fn get_optional_single(&'a self, id: &Id) -> &'a Option<&'a str> {
+        self.opt_singles.get(id).unwrap_or_else(|| panic!(format!(
+            "No optional single-parameter argument found with id {}", id
+        )))
+    }
+    
+    fn get_optional_multiple(&'a self, id: &Id) -> &'a Option<Vec<&'a str>> {
+        self.opt_multiples.get(id).unwrap_or_else(|| panic!(format!(
+            "No optional multiple-parameter argument found with id {}", id
+        )))
+    }
+    
+    fn get_flag(&self, id: &Id) -> bool {
+        *self.opt_flags.get(id).unwrap_or_else(|| panic!(format!(
+            "No flag found with id {}", id
+        )))
     }
 }
 
@@ -154,12 +217,12 @@ impl <'a> Argument {
 // ================================= Parser ====================================
 // =============================================================================
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ArgumentParser<'a> {
-    title: &'a str,
+    pub title: &'a str,
     next_id: Id,
     req_singles: Vec<(Id, RequiredSingleArgument<'a>)>,
-    //req_multiple: Option<>,
+    req_vararg: Option<(Id, RequiredMultipleArguments<'a>)>,
     //opt_multiples: Vec<(Id, <'a>)>,
     //opt_singles: Vec<(Id, <'a>)>,
     //opt_flags: Vec<(Id, <'a>)>,
@@ -171,26 +234,58 @@ impl <'a> ArgumentParser<'a> {
             title: title,
             next_id: 1,
             req_singles: Vec::new(),
-            //req_multiple: None,
+            req_vararg: None,
             //opt_multiples: Vec::new(),
             //opt_singles: Vec::new(),
             //opt_flags: Vec::new(),
         }
     }
     
-    fn add_required_single(&mut self, arg: &RequiredSingleArgument<'a>) -> Id {
+    fn generate_id(&mut self) -> Id {
         let id = self.next_id;
         self.next_id += 1;
-        self.req_singles.push((id, arg.clone()));
         id
+    }
+    
+    fn add_required_single(&mut self, arg: &RequiredSingleArgument<'a>) 
+            -> Result<Id, String> {
+        if self.req_vararg.is_some() {
+            Err(format!("Could not add the argument '{}', since all required 
+                single-parameter arguments must be added before the 
+                variable-parameter argument", arg.name))
+        } else {
+            let id = self.generate_id();
+            self.req_singles.push((id, arg.clone()));
+            Ok(id)
+        }
+    }
+    
+    fn add_required_multiple(&mut self, arg: &RequiredMultipleArguments<'a>)
+            -> Result<Id, String> {
+        if self.req_vararg.is_some() {
+            Err(String::from("There is already a multi-count argument defined 
+                for the parser"))
+        } else {
+            let id = self.generate_id();
+            self.req_vararg = Some((id, arg.clone()));
+            Ok(id)
+        }
     }
     
     pub fn parse(&self, args: &[&str] )
             -> Result<ParsedArguments<'a>, String> {
         let mut req_singles = HashMap::new();
+        let mut req_vararg = None;
+        let mut opt_singles = HashMap::new();
+        let mut opt_multiples = HashMap::new();
+        let mut opt_flags = HashMap::new();
         
         let mut parsed = ParsedArguments { 
-            req_singles: req_singles
+            req_singles: req_singles,
+            req_vararg: req_vararg,
+            opt_singles: opt_singles,
+            opt_multiples: opt_multiples,
+            opt_flags: opt_flags,
         };
         
         for arg in args.iter() {
