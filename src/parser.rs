@@ -1,6 +1,6 @@
 // Created by Jakob Lautrup Nysom @ 31-12-2015
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::iter::Iterator;
 
 type Id = usize;
@@ -12,7 +12,7 @@ struct ArgumentDescription<'a> {
 }
 
 impl <'a> ArgumentDescription<'a> {
-    pub fn empty() -> ArgumentDescription<'a> {
+    fn empty() -> ArgumentDescription<'a> {
         ArgumentDescription {
             name: None,
             help: None,
@@ -99,6 +99,22 @@ enum OptionalName<'a> {
     Short(char),
     Long(&'a str),
     ShortAndLong(char, &'a str),
+}
+
+impl <'a> OptionalName<'a> {
+    fn create_names(&self) -> Vec<String> {
+        match self {
+            &OptionalName::Short(ch) => {
+                vec![format!("-{}", ch)]
+            },
+            &OptionalName::Long(long) => {
+                vec![format!("--{}", long)]
+            },
+            &OptionalName::ShortAndLong(ch, long) => {
+                vec![format!("-{}", ch), format!("--{}", long)]
+            }
+        }
+    }
 }
 
 /// An optional argument
@@ -265,12 +281,15 @@ pub enum ParseStatus<'a> {
 pub struct ArgumentParser<'a> {
     pub title: &'a str,
     next_id: Id,
-    req_singles: Vec<(Id, RequiredSingleArgument<'a>)>,
-    req_vararg: Option<(Id, RequiredMultipleArguments<'a>)>,
-    //opt_multiples: Vec<(Id, <'a>)>,
-    //opt_singles: Vec<(Id, <'a>)>,
-    //opt_flags: Vec<(Id, <'a>)>,
-    interrupt_flags: Vec<(InterruptFlagTag, InterruptFlag<'a>)>
+    req_singles: Vec<Id>,
+    req_vararg: Option<(Id, MultipleArguments)>,
+    opt_singles: HashMap<String, Id>,
+    opt_multiples: HashMap<String, (Id, MultipleArguments)>,
+    opt_flags: HashMap<String, Id>,
+    interrupt_flags: HashMap<String, InterruptFlagTag>,
+    taken_names: HashSet<String>,
+    req_descriptions: Vec<(String, String)>,
+    opt_descriptions: Vec<(String, String)>,
 }
 
 impl <'a> ArgumentParser<'a> {
@@ -281,19 +300,41 @@ impl <'a> ArgumentParser<'a> {
             next_id: 1,
             req_singles: Vec::new(),
             req_vararg: None,
-            //opt_multiples: Vec::new(),
-            //opt_singles: Vec::new(),
-            //opt_flags: Vec::new(),
-            interrupt_flags: Vec::new(),
+            opt_singles: HashMap::new(),
+            opt_multiples: HashMap::new(),
+            opt_flags: HashMap::new(),
+            interrupt_flags: HashMap::new(),
+            taken_names: HashSet::new(),
+            req_descriptions: Vec::new(),
+            opt_descriptions: Vec::new(),
         }
     }
     
+    /// Generates the next argument id for the parser.
     fn generate_id(&mut self) -> Id {
         let id = self.next_id;
         self.next_id += 1;
         id
     }
     
+    /// Checks that the given names are not registered with the parser.
+    fn check_names(&self, names: &Vec<String>) -> Result<(), String> {
+        for name in names {
+            if self.taken_names.contains(name) {
+                return Err(format!("The argument '{}' is already taken!",
+                    name
+                ));
+            }
+        }
+        Ok(())
+    }
+    
+    fn create_description(names: &Vec<String>, description: &str) 
+            -> (String, String) {
+        ("".into(), "".into())
+    }
+    
+    /// Attempts to add a required single-parameter argument.
     fn add_required_single(&mut self, arg: &RequiredSingleArgument<'a>) 
             -> Result<Id, String> {
         if self.req_vararg.is_some() {
@@ -302,11 +343,12 @@ impl <'a> ArgumentParser<'a> {
                 variable-parameter argument", arg.name))
         } else {
             let id = self.generate_id();
-            self.req_singles.push((id, arg.clone()));
+            self.req_singles.push(id);
             Ok(id)
         }
     }
     
+    /// Attempts to add a required multiple-parameter argument.
     fn add_required_multiple(&mut self, arg: &RequiredMultipleArguments<'a>)
             -> Result<Id, String> {
         if self.req_vararg.is_some() {
@@ -314,24 +356,48 @@ impl <'a> ArgumentParser<'a> {
                 for the parser"))
         } else {
             let id = self.generate_id();
-            self.req_vararg = Some((id, arg.clone()));
+            self.req_vararg = Some((id, arg.argtype.clone()));
             Ok(id)
         }
     }
     
-    /// Registers a default help command for the parser
+    /// Attempts to add an interrupt flag.
+    fn add_interrupt_flag(&mut self, flag: &InterruptFlag<'a>)
+            -> Result<InterruptFlagTag, String> {
+        let names = flag.name.create_names();
+        try!(self.check_names(&names));
+        let id = self.generate_id();
+        let tag = InterruptFlagTag(id);
+        for name in names {
+            self.interrupt_flags.insert(name, tag.clone());
+        }
+        Ok(tag)
+    }
+    
+    /// Registers a default help command for the parser with the flags
+    /// '-h' and '--help'.
     pub fn add_default_help_command(&mut self) {
         let arg = Argument::optional_short_and_long('h', "help");
     }
     
+    /// Registers a default version command for the parser with the flag
+    /// '--version'.
     pub fn add_default_version_command(&mut self, version: &'a str) {
-        let arg = Argument::optional_short_and_long('v', "version");
+        let arg = Argument::optional_long("version");
     }
     
     /// Parses the given arguments or returns an error if they do not satisfy
     /// the declared arguments of the parser.
-    pub fn parse(&self, args: &[&str] )
+    pub fn parse(&self, args: &[String] )
             -> ParseStatus<'a> {
+                
+        for arg in args {
+            if let Some(tag) = self.interrupt_flags.get(arg) {
+                return ParseStatus::Interrupt(tag.clone())
+            }
+        }
+        
+        
         let mut req_singles = HashMap::new();
         let mut req_vararg = None;
         let mut opt_singles = HashMap::new();

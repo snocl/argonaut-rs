@@ -7,7 +7,7 @@ fn main() {
     let mut parser = ArgumentParser::new("Argonaut");
     let arg = Argument::required("one").single();
     let one = arg.add_to(&mut parser).unwrap();
-    let status = parser.parse(&["hello", "world"]);
+    let status = parser.parse(&["hello".into(), "world".into()]);
     println!("Parser: {:?}", parser);
     println!("Arg: {:?}", arg);
     println!("Tag: {:?}", one);
