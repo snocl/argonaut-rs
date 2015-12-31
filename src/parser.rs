@@ -37,6 +37,7 @@ struct FlagArgument;
 // ========================= Specialized arguments =============================
 // =============================================================================
 
+/// A required single-parameter argument.
 #[derive(Debug, Clone)]
 pub struct RequiredSingleArgument<'a> {
     name: &'a str,
@@ -51,6 +52,7 @@ impl <'a> RequiredSingleArgument<'a> {
     }
 }
 
+/// A required multiple-parameter argument.
 #[derive(Debug, Clone)]
 pub struct RequiredMultipleArguments<'a> {
     name: &'a str,
@@ -66,10 +68,18 @@ impl <'a> RequiredMultipleArguments<'a> {
     }
 }
 
+/// A flag that interrupts the parsing when encountered.
+#[derive(Debug, Clone)]
+pub struct InterruptFlag<'a> {
+    name: OptionalName<'a>,
+    desc: ArgumentDescription<'a>,
+}
+
 // =============================================================================
 // ======================== Argument count builders ============================
 // =============================================================================
 
+/// A required argument.
 #[derive(Debug)]
 pub struct Required<'a> {
     name: &'a str,
@@ -91,9 +101,19 @@ enum OptionalName<'a> {
     ShortAndLong(char, &'a str),
 }
 
+/// An optional argument
 #[derive(Debug)]
 pub struct Optional<'a> {
     name: OptionalName<'a>,
+}
+
+impl <'a> Optional<'a> {
+    pub fn interrupt(self) -> InterruptFlag<'a> {
+        InterruptFlag {
+            name: self.name,
+            desc: ArgumentDescription::empty(),
+        }
+    }
 }
 
 
@@ -101,29 +121,35 @@ pub struct Optional<'a> {
 // ================================== Tags =====================================
 // =============================================================================
 
+/// The handle for a required single-parameter argument.
 #[derive(Debug, Clone)]
 pub struct RequiredSingleTag {
     id: Id
 }
 
 impl RequiredSingleTag {
-    /// Gets the value of this tag in the parsed arguments
+    /// Gets the value of this tag in the parsed arguments.
     pub fn get<'a>(&self, arguments: &ParsedArguments<'a>) -> &'a str {
         arguments.get_required_single(&self.id)
     }
 }
 
+/// The handle for a required multiple-parameter argument.
 #[derive(Debug, Clone)]
 pub struct RequiredMultiplesTag {
     id: Id
 }
 
 impl RequiredMultiplesTag {
-    /// Gets the value of this tag in the parsed arguments
+    /// Gets the value of this tag in the parsed arguments.
     pub fn get<'a>(&self, arguments: &'a ParsedArguments<'a>) -> &Vec<&'a str> {
         arguments.get_required_multiple(&self.id)
     }
 }
+
+/// The handle for an interrupt flag.
+#[derive(Debug, Clone)]
+pub struct InterruptFlagTag(Id);
 
 
 // =============================================================================
@@ -225,6 +251,16 @@ impl <'a> Argument {
 // ================================= Parser ====================================
 // =============================================================================
 
+/// The result of a succesful parse. Either all the arguments are parsed and
+/// bound, or an interrupt flag is encountered and the handle of the
+/// corresponding argument is returned.
+#[must_use]
+pub enum ParseStatus<'a> {
+    Ok(ParsedArguments<'a>),
+    Interrupt(InterruptFlagTag),
+    Err(String),
+}
+
 #[derive(Debug, Clone)]
 pub struct ArgumentParser<'a> {
     pub title: &'a str,
@@ -234,9 +270,11 @@ pub struct ArgumentParser<'a> {
     //opt_multiples: Vec<(Id, <'a>)>,
     //opt_singles: Vec<(Id, <'a>)>,
     //opt_flags: Vec<(Id, <'a>)>,
+    interrupt_flags: Vec<(InterruptFlagTag, InterruptFlag<'a>)>
 }
 
 impl <'a> ArgumentParser<'a> {
+    /// Creates a new argument parser with the given title.
     pub fn new(title: &str) -> ArgumentParser {
         ArgumentParser {
             title: title,
@@ -246,6 +284,7 @@ impl <'a> ArgumentParser<'a> {
             //opt_multiples: Vec::new(),
             //opt_singles: Vec::new(),
             //opt_flags: Vec::new(),
+            interrupt_flags: Vec::new(),
         }
     }
     
@@ -280,8 +319,19 @@ impl <'a> ArgumentParser<'a> {
         }
     }
     
+    /// Registers a default help command for the parser
+    pub fn add_default_help_command(&mut self) {
+        let arg = Argument::optional_short_and_long('h', "help");
+    }
+    
+    pub fn add_default_version_command(&mut self, version: &'a str) {
+        let arg = Argument::optional_short_and_long('v', "version");
+    }
+    
+    /// Parses the given arguments or returns an error if they do not satisfy
+    /// the declared arguments of the parser.
     pub fn parse(&self, args: &[&str] )
-            -> Result<ParsedArguments<'a>, String> {
+            -> ParseStatus<'a> {
         let mut req_singles = HashMap::new();
         let mut req_vararg = None;
         let mut opt_singles = HashMap::new();
@@ -300,6 +350,6 @@ impl <'a> ArgumentParser<'a> {
             println!("Parsing '{}'", arg);
         }
         
-        Ok(parsed)
+        ParseStatus::Ok(parsed)
     }
 }
