@@ -33,36 +33,26 @@ struct SingleArgument;
 #[derive(Debug, Clone)]
 struct FlagArgument;
 
-#[derive(Debug, Clone)]
-pub struct RequiredSingleTag {
-    id: Id
-}
-
-impl RequiredSingleTag {
-    pub fn get<'a>(&self, args: &ParsedArguments<'a>) -> &'a str {
-        args.get_required_single(self.id)
-    }
-}
+// =============================================================================
+// ========================= Specialized arguments =============================
+// =============================================================================
 
 #[derive(Debug, Clone)]
-pub struct RequiredSingleArg<'a> {
+pub struct RequiredSingleArgument<'a> {
     name: &'a str,
     desc: ArgumentDescription<'a>,
 }
 
-impl <'a> RequiredSingleArg<'a> {
-    pub fn new(name: &'a str) -> RequiredSingleArg<'a> {
-        RequiredSingleArg {
-            name: name,
-            desc: ArgumentDescription::empty(),
-        }
-    }
-    
-    pub fn add_to(&self, parser: &mut Parser<'a>) -> RequiredSingleTag {
+impl <'a> RequiredSingleArgument<'a> {
+    pub fn add_to(&self, parser: &mut ArgumentParser<'a>) -> RequiredSingleTag {
         let id = parser.add_required_single(self);
         RequiredSingleTag { id: id }
     }
 }
+
+// =============================================================================
+// ======================== Argument count builders ============================
+// =============================================================================
 
 #[derive(Debug)]
 pub struct Required<'a> {
@@ -70,8 +60,11 @@ pub struct Required<'a> {
 }
 
 impl <'a> Required<'a> {
-    pub fn single(self) -> RequiredSingleArg<'a> {
-        RequiredSingleArg::new(self.name)
+    pub fn single(self) -> RequiredSingleArgument<'a> {
+        RequiredSingleArgument {
+            name: self.name,
+            desc: ArgumentDescription::empty(),
+        }
     }
 }
 
@@ -87,10 +80,50 @@ pub struct Optional<'a> {
     name: OptionalName<'a>,
 }
 
-/// An argument for the parser
-pub struct Arg;
 
-impl <'a> Arg {
+// =============================================================================
+// ================================== Tags =====================================
+// =============================================================================
+
+#[derive(Debug, Clone)]
+pub struct RequiredSingleTag {
+    id: Id
+}
+
+impl RequiredSingleTag {
+    pub fn get<'a>(&self, arguments: &ParsedArguments<'a>) -> &'a str {
+        arguments.get_required_single(self.id)
+    }
+}
+
+
+// =============================================================================
+// ============================ Parsed arguments ===============================
+// =============================================================================
+
+#[derive(Debug)]
+pub struct ParsedArguments<'a> {
+    req_singles: HashMap<Id, &'a str>,
+    //req_multiple: Vec<&'a str>,
+    //opt_singles: HashMap<Id, Option<&'a str>>,
+    //opt_multiples: HashMap<Id, Option<Vec<&'a str>>>,
+    //opt_flags: HashMap<Id, bool>,
+}
+
+impl <'a> ParsedArguments<'a> {
+    fn get_required_single(&self, id: Id) -> &'a str {
+        "Yay!"
+    }
+}
+
+// =============================================================================
+// ========================== Argument constructors ============================
+// =============================================================================
+
+/// An argument for the parser
+pub struct Argument;
+
+impl <'a> Argument {
     pub fn required(name: &'a str) -> Required<'a> {
         Required {
             name: name
@@ -109,7 +142,7 @@ impl <'a> Arg {
         }
     }
     
-    pub fn optional_both(short_name: &'a str, long_name: &'a str) 
+    pub fn optional_short_and_long(short_name: &'a str, long_name: &'a str) 
             -> Optional<'a> {
         Optional {
             name: OptionalName::ShortAndLong(short_name, long_name)
@@ -117,35 +150,24 @@ impl <'a> Arg {
     }
 }
 
-#[derive(Debug)]
-pub struct ParsedArguments<'a> {
-    req_singles: HashMap<Id, &'a str>,
-    //req_multiple: Vec<&'a str>,
-    //opt_singles: HashMap<Id, Option<&'a str>>,
-    //opt_multiples: HashMap<Id, Option<Vec<&'a str>>>,
-    //opt_flags: HashMap<Id, bool>,
-}
-
-impl <'a> ParsedArguments<'a> {
-    fn get_required_single(&self, id: Id) -> &'a str {
-        "Yay!"
-    }
-}
+// =============================================================================
+// ================================= Parser ====================================
+// =============================================================================
 
 #[derive(Debug)]
-pub struct Parser<'a> {
+pub struct ArgumentParser<'a> {
     title: &'a str,
     next_id: Id,
-    req_singles: Vec<(Id, RequiredSingleArg<'a>)>,
+    req_singles: Vec<(Id, RequiredSingleArgument<'a>)>,
     //req_multiple: Option<>,
     //opt_multiples: Vec<(Id, <'a>)>,
     //opt_singles: Vec<(Id, <'a>)>,
     //opt_flags: Vec<(Id, <'a>)>,
 }
 
-impl <'a> Parser<'a> {
-    pub fn new(title: &str) -> Parser {
-        Parser {
+impl <'a> ArgumentParser<'a> {
+    pub fn new(title: &str) -> ArgumentParser {
+        ArgumentParser {
             title: title,
             next_id: 1,
             req_singles: Vec::new(),
@@ -156,7 +178,7 @@ impl <'a> Parser<'a> {
         }
     }
     
-    fn add_required_single(&mut self, arg: &RequiredSingleArg<'a>) -> Id {
+    fn add_required_single(&mut self, arg: &RequiredSingleArgument<'a>) -> Id {
         let id = self.next_id;
         self.next_id += 1;
         self.req_singles.push((id, arg.clone()));

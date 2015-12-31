@@ -1,11 +1,11 @@
 #![allow(unused, dead_code)]
 mod parser;
-use parser::{Parser, Arg};
+use parser::{ArgumentParser, Argument};
 
 fn main() {
     println!("Hello, world!");
-    let mut parser = Parser::new("Argonaut");
-    let arg = Arg::required("one").single();
+    let mut parser = ArgumentParser::new("Argonaut");
+    let arg = Argument::required("one").single();
     let one = arg.add_to(&mut parser);
     let parsed = parser.parse(&["hello", "world"]).unwrap();
     println!("Parser: {:?}", parser);
