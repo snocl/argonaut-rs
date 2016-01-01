@@ -10,7 +10,10 @@ fn main() {
     
     let int_help = parser.add_default_help_interrupt().unwrap();
     let int_version = parser.add_default_version_interrupt().unwrap();
-    let one = Argument::required("one").single().add_to(&mut parser).unwrap();
+    //let one = Argument::required("one").single().add_to(&mut parser).unwrap();
+    
+    let two = Argument::optional_short_and_long('t', "two").flag()
+        .add_to(&mut parser).unwrap();
     
     let status = parser.parse(&args);
     
@@ -19,8 +22,12 @@ fn main() {
     
     match status {
         ParseStatus::Ok(parsed) => {
-            let res = one.get(&parsed);
-            println!("one: {}", res);
+            println!("Parser result:");
+            println!("{:?}", parsed);
+            println!("");
+            //let res = one.get(&parsed);
+            //println!("one: {}", res);
+            println!("Two: {}", two.get(&parsed));
         },
         ParseStatus::Interrupt(tag) => {
             if tag == int_help {

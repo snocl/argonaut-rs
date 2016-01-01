@@ -91,10 +91,6 @@ impl SingleArgument {
     }
 }
 
-/// A flag argument (an argument with no parameters).
-#[derive(Debug, Clone)]
-struct FlagArgument;
-
 impl SingleArgument {
     /// Creates a description of the parameters for a usage string.
     fn usage(&self) -> String {
@@ -116,8 +112,8 @@ pub struct RequiredSingleArgument<'a> {
 impl <'a> RequiredSingleArgument<'a> {
     pub fn add_to(&self, parser: &mut ArgumentParser<'a>) 
             -> Result<RequiredSingleTag, String> {
-        let res = parser.add_required_single(self);
-        res.map(|id| RequiredSingleTag { id: id })
+        let id = try!(parser.add_required_single(self));
+        Ok(RequiredSingleTag { id: id })
     }
 }
 
@@ -132,8 +128,8 @@ pub struct RequiredMultipleArguments<'a> {
 impl <'a> RequiredMultipleArguments<'a> {
     pub fn add_to(&self, parser: &mut ArgumentParser<'a>) 
             -> Result<RequiredMultiplesTag, String> {
-        let res = parser.add_required_multiple(self);
-        res.map(|id| RequiredMultiplesTag { id: id })
+        let id = try!(parser.add_required_multiple(self));
+        Ok(RequiredMultiplesTag { id: id })
     }
 }
 
@@ -148,6 +144,21 @@ impl <'a> InterruptFlag<'a> {
     pub fn add_to(&self, parser: &mut ArgumentParser<'a>)
             -> Result<InterruptFlagTag, String> {
         parser.add_interrupt_flag(self)
+    }
+}
+
+/// A flag that is set to true when the argument is found.
+#[derive(Debug, Clone)]
+pub struct FlagArgument<'a> {
+    name: OptionalName<'a>,
+    desc: ArgumentDescription<'a>,
+}
+
+impl <'a> FlagArgument<'a> {
+    pub fn add_to(&self, parser: &mut ArgumentParser<'a>) 
+            -> Result<FlagTag, String> {
+        let id = try!(parser.add_flag(self));
+        Ok(FlagTag { id: id })
     }
 }
 
@@ -200,8 +211,19 @@ pub struct Optional<'a> {
 }
 
 impl <'a> Optional<'a> {
+    /// Turns the argument into an interrupt flag, which interrupts the parse
+    /// and returns the tag when encountered.
     pub fn interrupt(self) -> InterruptFlag<'a> {
         InterruptFlag {
+            name: self.name,
+            desc: ArgumentDescription::empty(),
+        }
+    }
+    
+    /// Turns the argument into a flag, which will be true if it is found in
+    /// the arguments given to the program.
+    pub fn flag(self) -> FlagArgument<'a> {
+        FlagArgument {
             name: self.name,
             desc: ArgumentDescription::empty(),
         }
@@ -220,7 +242,7 @@ pub struct RequiredSingleTag {
 }
 
 impl RequiredSingleTag {
-    /// Gets the value of this tag in the parsed arguments.
+    /// Gets the value of this argument in the parsed arguments.
     pub fn get<'a>(&self, arguments: &ParsedArguments<'a>) -> &'a str {
         arguments.get_required_single(&self.id)
     }
@@ -233,18 +255,72 @@ pub struct RequiredMultiplesTag {
 }
 
 impl RequiredMultiplesTag {
-    /// Gets the value of this tag in the parsed arguments.
+    /// Gets the value of this argument in the parsed arguments.
     pub fn get<'a>(&self, arguments: &'a ParsedArguments<'a>) -> &Vec<&'a str> {
         arguments.get_required_multiple(&self.id)
     }
 }
 
-/// The handle for an interrupt flag.
+/// The handle for an interrupt flag argument.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InterruptFlagTag {
     id: Id
 }
 
+/// The handle for a flag argument.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlagTag {
+    id: Id
+}
+
+impl FlagTag {
+    /// Gets the value of this argument in the parsed arguments.
+    pub fn get<'a>(&self, arguments: &ParsedArguments<'a>) -> bool {
+        arguments.get_flag(&self.id)
+    }
+}
+
+// =============================================================================
+// ========================== Argument constructors ============================
+// =============================================================================
+
+/// An argument for the parser.
+pub struct Argument;
+
+impl <'a> Argument {
+    /// Creates a builder for a new required argument with the given name.
+    pub fn required(name: &'a str) -> Required<'a> {
+        Required {
+            name: name
+        }
+    }
+    
+    /// Creates a builder for an optional argument with the given short name
+    /// prefixed by '-' (eg '-a').
+    pub fn optional_short(name: char) -> Optional<'a> {
+        Optional {
+            name: OptionalName::Short(name)
+        }
+    }
+    
+    /// Creates a builder for an optional argument with the given long name
+    /// prefixed by '--' (eg '--all').
+    pub fn optional_long(name: &'a str) -> Optional<'a> {
+        Optional {
+            name: OptionalName::Long(name)
+        }
+    }
+    
+    /// Creates a builder for an optional argument with the given short and
+    /// long names, where the short name is prefixed by '-' and the long name by 
+    /// '--'.
+    pub fn optional_short_and_long(short_name: char, long_name: &'a str) 
+            -> Optional<'a> {
+        Optional {
+            name: OptionalName::ShortAndLong(short_name, long_name)
+        }
+    }
+}
 
 // =============================================================================
 // ============================ Parsed arguments ===============================
@@ -296,48 +372,6 @@ impl <'a> ParsedArguments<'a> {
         *self.opt_flags.get(id).unwrap_or_else(|| panic!(format!(
             "No flag found with id {}", id
         )))
-    }
-}
-
-// =============================================================================
-// ========================== Argument constructors ============================
-// =============================================================================
-
-/// An argument for the parser.
-pub struct Argument;
-
-impl <'a> Argument {
-    /// Creates a builder for a new required argument with the given name.
-    pub fn required(name: &'a str) -> Required<'a> {
-        Required {
-            name: name
-        }
-    }
-    
-    /// Creates a builder for an optional argument with the given short name
-    /// prefixed by '-' (eg '-a').
-    pub fn optional_short(name: char) -> Optional<'a> {
-        Optional {
-            name: OptionalName::Short(name)
-        }
-    }
-    
-    /// Creates a builder for an optional argument with the given long name
-    /// prefixed by '--' (eg '--all').
-    pub fn optional_long(name: &'a str) -> Optional<'a> {
-        Optional {
-            name: OptionalName::Long(name)
-        }
-    }
-    
-    /// Creates a builder for an optional argument with the given short and
-    /// long names, where the short name is prefixed by '-' and the long name by 
-    /// '--'.
-    pub fn optional_short_and_long(short_name: char, long_name: &'a str) 
-            -> Optional<'a> {
-        Optional {
-            name: OptionalName::ShortAndLong(short_name, long_name)
-        }
     }
 }
 
@@ -458,6 +492,18 @@ impl <'a> ArgumentParser<'a> {
         Ok(tag)
     }
     
+    /// Attempts to add a flag.
+    fn add_flag(&mut self, flag: &FlagArgument<'a>) 
+            -> Result<Id, String> {
+        let names = flag.name.create_names();
+        try!(self.check_names(&names));
+        let id = self.generate_id();
+        for name in names {
+            self.opt_flags.insert(name, id);
+        }
+        Ok(id)
+    }
+    
     /// Registers a default help command for the parser with the flags
     /// '-h' and '--help'.
     pub fn add_default_help_interrupt(&mut self) 
@@ -478,19 +524,77 @@ impl <'a> ArgumentParser<'a> {
     /// the declared arguments of the parser.
     pub fn parse(&self, args: &[String] )
             -> ParseStatus<'a> {
-                
+        
+        // Check for interrupts first
         for arg in args {
             if let Some(tag) = self.interrupt_flags.get(arg) {
                 return ParseStatus::Interrupt(tag.clone())
             }
         }
         
+        // TODO: Consider whether duplicate arguments given should be warned
+        // by default, or only with a specific flag set.
+        // Keep track of the set ids, and which parameter this was from
+        //let mut found: HashMap<Id, String> = HashMap::new();
         
+        // If it is not interrupted, prepare the structures        
         let mut req_singles = HashMap::new();
         let mut req_vararg = None;
-        let mut opt_singles = HashMap::new();
-        let mut opt_multiples = HashMap::new();
-        let mut opt_flags = HashMap::new();
+        let mut opt_singles: HashMap<Id, Option<&'a str>> = 
+            self.opt_singles.values()
+            .map(|id| (*id, None)).collect();
+        
+        let mut opt_multiples: HashMap<Id, Option<Vec<&'a str>>> =
+            self.opt_multiples.values()
+            .map(|&(ref id, ref args)| (*id, None)).collect();
+        
+        let mut opt_flags: HashMap<Id, bool> = 
+            self.opt_flags.values()
+            .map(|id| (*id, false)).collect();
+        
+        let mut i = 0;
+        while i < args.len() {
+            let ref arg = args[i];
+            
+            // Long flags
+            if arg.starts_with("--") {
+                i += 1; // TODO: HANDLE!
+            // Short flags
+            } else if arg.starts_with("-") {
+                // Single short flag
+                if arg.len() == 2 {
+                    if let Some(id) = self.opt_flags.get(arg) {
+                        opt_flags.insert(*id, true);
+                    } else {
+                        unimplemented!();
+                    }
+                    i += 1; // TODO: HANDLE!
+                // Multiple short flags
+                } else { 
+                    for letter in arg.chars().skip(1) {
+                        let name = format!("-{}", letter);
+                        if !self.taken_names.contains(&name) {
+                            return ParseStatus::Err(format!("
+                                Unrecognized flag: '{}'
+                            ", name));
+                        }
+                        if let Some(id) = self.opt_flags.get(&name) {
+                            opt_flags.insert(*id, true);
+                        } else {
+                            return ParseStatus::Err(format!("
+                                The short argument '{}' is not a flag, and 
+                                so cannot be grouped with other flags.
+                            ", name));
+                        }
+                    }
+                    i += 1;
+                }
+            
+            // Regular arguments
+            } else {
+                i += 1; // TODO: HANDLE
+            }
+        }
         
         let mut parsed = ParsedArguments { 
             req_singles: req_singles,
