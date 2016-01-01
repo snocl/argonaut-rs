@@ -15,6 +15,8 @@ fn main() {
     let two = Argument::optional_short_and_long('t', "two").flag()
         .add_to(&mut parser).unwrap();
     
+    let f = Argument::optional_short('f').flag().add_to(&mut parser).unwrap();
+    
     let status = parser.parse(&args);
     
     //println!("Parser: {:?}", parser);
@@ -28,6 +30,7 @@ fn main() {
             //let res = one.get(&parsed);
             //println!("one: {}", res);
             println!("Two: {}", two.get(&parsed));
+            println!("f: {}", f.get(&parsed));
         },
         ParseStatus::Interrupt(tag) => {
             if tag == int_help {

@@ -347,7 +347,8 @@ impl <'a> ParsedArguments<'a> {
             if vid == id {
                 args
             } else {
-                panic!(format!("The given tag has the wrong id for the
+                panic!(format!(
+                    "The given tag has the wrong id for the \
                     multiple-parameter argument ({} != {})!", id, vid
                 ))
             }
@@ -455,9 +456,11 @@ impl <'a> ArgumentParser<'a> {
     fn add_required_single(&mut self, arg: &RequiredSingleArgument<'a>) 
             -> Result<Id, String> {
         if self.req_vararg.is_some() {
-            Err(format!("Could not add the argument '{}', since all required 
-                single-parameter arguments must be added before the 
-                variable-parameter argument", arg.name))
+            Err(format!(
+                "Could not add the argument '{}', since all required \
+                single-parameter arguments must be added before the \
+                variable-parameter argument", arg.name
+            ))
         } else {
             let id = self.generate_id();
             //self.req_descriptions.push(create)
@@ -470,8 +473,9 @@ impl <'a> ArgumentParser<'a> {
     fn add_required_multiple(&mut self, arg: &RequiredMultipleArguments<'a>)
             -> Result<Id, String> {
         if self.req_vararg.is_some() {
-            Err(String::from("There is already a multi-count argument defined 
-                for the parser"))
+            Err(String::from(
+                "A required multi-count argument is already defined\
+            "))
         } else {
             let id = self.generate_id();
             self.req_vararg = Some((id, arg.argtype.clone()));
@@ -487,7 +491,8 @@ impl <'a> ArgumentParser<'a> {
         let id = self.generate_id();
         let tag = InterruptFlagTag { id: id };
         for name in names {
-            self.interrupt_flags.insert(name, tag.clone());
+            self.interrupt_flags.insert(name.clone(), tag.clone());
+            self.taken_names.insert(name);
         }
         Ok(tag)
     }
@@ -499,7 +504,8 @@ impl <'a> ArgumentParser<'a> {
         try!(self.check_names(&names));
         let id = self.generate_id();
         for name in names {
-            self.opt_flags.insert(name, id);
+            self.opt_flags.insert(name.clone(), id);
+            self.taken_names.insert(name);
         }
         Ok(id)
     }
@@ -563,6 +569,11 @@ impl <'a> ArgumentParser<'a> {
             } else if arg.starts_with("-") {
                 // Single short flag
                 if arg.len() == 2 {
+                    if ! self.taken_names.contains(arg) {
+                        return ParseStatus::Err(format!(
+                            "Unrecognized flag: '{}'", arg
+                        ))
+                    }
                     if let Some(id) = self.opt_flags.get(arg) {
                         opt_flags.insert(*id, true);
                     } else {
@@ -574,16 +585,16 @@ impl <'a> ArgumentParser<'a> {
                     for letter in arg.chars().skip(1) {
                         let name = format!("-{}", letter);
                         if !self.taken_names.contains(&name) {
-                            return ParseStatus::Err(format!("
-                                Unrecognized flag: '{}'
-                            ", name));
+                            return ParseStatus::Err(format!(
+                                "Unrecognized flag: '{}'", name
+                            ));
                         }
                         if let Some(id) = self.opt_flags.get(&name) {
                             opt_flags.insert(*id, true);
                         } else {
-                            return ParseStatus::Err(format!("
-                                The short argument '{}' is not a flag, and 
-                                so cannot be grouped with other flags.
+                            return ParseStatus::Err(format!(
+                                "The short argument '{}' is not a flag, and \
+                                so cannot be grouped with other flags.\
                             ", name));
                         }
                     }
