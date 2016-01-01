@@ -10,38 +10,11 @@ type Id = usize;
 // TODO: Find a thread-safe alternative to this, or use the panicky way?
 //static mut PARSER_ID: Id = 1;
 
-
-/// Metadata for the help options of an argument or flag.
-#[derive(Debug, Clone)]
-struct ArgumentDescription<'a> {
-    name: Option<&'a str>,
-    help: Option<&'a str>,
-}
-
-impl <'a> ArgumentDescription<'a> {
-    /// Creates an empty argument description.
-    fn empty() -> ArgumentDescription<'a> {
-        ArgumentDescription {
-            name: None,
-            help: None,
-        }
-    }
-}
-
-/// The description of how to use a specific argument or flag.
+/// The name of an argument.
 #[derive(Debug)]
-struct HelpDescription<'a> {
-    usage: String,
-    help: &'a str,
-}
-
-impl <'a> HelpDescription<'a> {
-    fn new(usage: String, help: &'a str) -> HelpDescription<'a> {
-        HelpDescription {
-            usage: usage,
-            help: help,
-        }
-    }
+enum ArgumentName<'a> {
+    Short(char),
+    Long(&'a str),
 }
 
 /// An argument that takes multiple parameters.
@@ -52,97 +25,89 @@ enum MultipleArguments {
     OneOrMore,
 }
 
-impl MultipleArguments {
-    /// Creates a description of the parameters for a usage string.
-    fn usage(&self, param_name: &str) -> String {
-        match *self {
-            MultipleArguments::Count(n) => {
-                if n >= 4 {
-                    format!("{0} {0}1 {0}2 ... {0}{1}", param_name, n)
-                } else {
-                    let mut s = String::new();
-                    for i in 0..n {
-                        s.push_str(param_name);
-                        if i <= n - 1 {
-                            s.push_str(" ");
-                        }
-                    }
-                    s
-                }
-            },
-            MultipleArguments::ZeroOrMore => {
-                format!("[{0} [{0} ...]]", param_name)
-            },
-            MultipleArguments::OneOrMore => {
-                format!("{0} [{0} [{0} ...]]", param_name)
-            },
+enum ArgumentType {
+    SingleRequired,
+    MultipleRequired(MultipleArguments),
+    
+    
+    
+}
+
+/// The full description of an argument.
+#[derive(Debug)]
+struct FullDescription<'a> {
+    names: Vec<ArgumentName<'a>>,
+    argtype: ArgumentType,
+    param_name: Option<&'a str>,
+    help: Option<&'a str>,
+}
+
+impl <'a> FullDescription<'a> {
+    /// Creates a new description.
+    fn new(names: Vec<ArgumentName<'a>>, param_name: Option<&'a str>, 
+            help: Option<&'a str>) 
+            -> FullDescription<'a> {
+        FullDescription {
+            names: names,
+            param_name: param_name,
+            help: help,
         }
     }
 }
 
-/// An argument with a single parameter.
-#[derive(Debug, Clone)]
-struct SingleArgument;
-
-impl SingleArgument {
-    /// Creates a description of the parameters for a usage string.
-    fn usage(&self, param_name: &str) -> String {
-        String::from(param_name)
-    }
+/// The handle for an interrupt flag argument.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InterruptFlagArgumentTag {
+    id: Id
 }
 
-impl SingleArgument {
-    /// Creates a description of the parameters for a usage string.
-    fn usage(&self) -> String {
-        String::new()
-    }
+// Declare and implement all the handles and their 'get' methods.
+tag_structs! {
+    SingleRequiredTag: get_single_required -> &'a str,
+    MultipleRequiredTag: get_multiple_required -> &Vec<&'a str>,
+    SingleOptionalTag: get_single_optional -> &Option<&'a str>,
+    MultipleOptionalTag: get_multiple_optional -> &Option<Vec<&'a str>>,
+    FlagTag: get_flag -> bool
 }
 
 // =============================================================================
 // ========================= Specialized arguments =============================
 // =============================================================================
 
-/// A required single-parameter argument.
-#[derive(Debug, Clone)]
-pub struct RequiredSingleArgument<'a> {
-    name: &'a str,
-    desc: ArgumentDescription<'a>,
-}
-
-impl <'a> RequiredSingleArgument<'a> {
-    pub fn add_to(&self, parser: &mut ArgumentParser<'a>) 
-            -> Result<RequiredSingleTag, String> {
-        let id = try!(parser.add_required_single(self));
-        Ok(RequiredSingleTag { id: id })
+argument_structs! {
+    /// A required single-parameter argument.
+    SingleRequiredArgument {
+        name: &'a str
     }
+    add_single_required -> SingleRequiredTag
 }
 
 /// A required multiple-parameter argument.
 #[derive(Debug, Clone)]
-pub struct RequiredMultipleArguments<'a> {
+pub struct MultipleRequiredArguments<'a> {
     name: &'a str,
     argtype: MultipleArguments,
     help: Option<&'a str>,
 }
 
-impl <'a> RequiredMultipleArguments<'a> {
+impl <'a> MultipleRequiredArguments<'a> {
     pub fn add_to(&self, parser: &mut ArgumentParser<'a>) 
-            -> Result<RequiredMultiplesTag, String> {
-        let id = try!(parser.add_required_multiple(self));
-        Ok(RequiredMultiplesTag { id: id })
+            -> Result<MultipleRequiredTag, String> {
+        let id = try!(parser.add_multiple_required(self));
+        Ok(MultipleRequiredTag { id: id })
     }
 }
 
 /// A flag that interrupts the parsing when encountered.
 #[derive(Debug, Clone)]
-pub struct InterruptFlag<'a> {
+pub struct InterruptFlagArgument<'a> {
     name: OptionalName<'a>,
-    desc: ArgumentDescription<'a>,
+    help: Option<&'a str>,
 }
 
-impl <'a> InterruptFlag<'a> {
+impl <'a> InterruptFlagArgument<'a> {
     pub fn add_to(&self, parser: &mut ArgumentParser<'a>)
-            -> Result<InterruptFlagTag, String> {
+            -> Result<InterruptFlagArgumentTag, String> {
         parser.add_interrupt_flag(self)
     }
 }
@@ -151,7 +116,7 @@ impl <'a> InterruptFlag<'a> {
 #[derive(Debug, Clone)]
 pub struct FlagArgument<'a> {
     name: OptionalName<'a>,
-    desc: ArgumentDescription<'a>,
+    help: Option<&'a str>,
 }
 
 impl <'a> FlagArgument<'a> {
@@ -173,8 +138,8 @@ pub struct Required<'a> {
 }
 
 impl <'a> Required<'a> {
-    pub fn single(self) -> RequiredSingleArgument<'a> {
-        RequiredSingleArgument {
+    pub fn single(self) -> SingleRequiredArgument<'a> {
+        SingleRequiredArgument {
             name: self.name,
             desc: ArgumentDescription::empty(),
         }
@@ -213,8 +178,8 @@ pub struct Optional<'a> {
 impl <'a> Optional<'a> {
     /// Turns the argument into an interrupt flag, which interrupts the parse
     /// and returns the tag when encountered.
-    pub fn interrupt(self) -> InterruptFlag<'a> {
-        InterruptFlag {
+    pub fn interrupt(self) -> InterruptFlagArgument<'a> {
+        InterruptFlagArgument {
             name: self.name,
             desc: ArgumentDescription::empty(),
         }
@@ -227,56 +192,6 @@ impl <'a> Optional<'a> {
             name: self.name,
             desc: ArgumentDescription::empty(),
         }
-    }
-}
-
-
-// =============================================================================
-// ================================== Tags =====================================
-// =============================================================================
-
-/// The handle for a required single-parameter argument.
-#[derive(Debug, Clone, PartialEq)]
-pub struct RequiredSingleTag {
-    id: Id
-}
-
-impl RequiredSingleTag {
-    /// Gets the value of this argument in the parsed arguments.
-    pub fn get<'a>(&self, arguments: &ParsedArguments<'a>) -> &'a str {
-        arguments.get_required_single(&self.id)
-    }
-}
-
-/// The handle for a required multiple-parameter argument.
-#[derive(Debug, Clone, PartialEq)]
-pub struct RequiredMultiplesTag {
-    id: Id
-}
-
-impl RequiredMultiplesTag {
-    /// Gets the value of this argument in the parsed arguments.
-    pub fn get<'a>(&self, arguments: &'a ParsedArguments<'a>) -> &Vec<&'a str> {
-        arguments.get_required_multiple(&self.id)
-    }
-}
-
-/// The handle for an interrupt flag argument.
-#[derive(Debug, Clone, PartialEq)]
-pub struct InterruptFlagTag {
-    id: Id
-}
-
-/// The handle for a flag argument.
-#[derive(Debug, Clone, PartialEq)]
-pub struct FlagTag {
-    id: Id
-}
-
-impl FlagTag {
-    /// Gets the value of this argument in the parsed arguments.
-    pub fn get<'a>(&self, arguments: &ParsedArguments<'a>) -> bool {
-        arguments.get_flag(&self.id)
     }
 }
 
@@ -336,13 +251,13 @@ pub struct ParsedArguments<'a> {
 }
 
 impl <'a> ParsedArguments<'a> {
-    fn get_required_single(&self, id: &Id) -> &'a str {
+    fn get_single_required(&self, id: &Id) -> &'a str {
         self.req_singles.get(id).unwrap_or_else(|| panic!(format!(
             "No required single argument found with id {}", id
         )))
     }
     
-    fn get_required_multiple(&'a self, id: &Id) -> &'a Vec<&'a str> {
+    fn get_multiple_required(&'a self, id: &Id) -> &'a Vec<&'a str> {
         if let Some((ref vid, ref args)) = self.req_vararg {
             if vid == id {
                 args
@@ -357,13 +272,13 @@ impl <'a> ParsedArguments<'a> {
         }
     }
     
-    fn get_optional_single(&'a self, id: &Id) -> &'a Option<&'a str> {
+    fn get_single_optional(&'a self, id: &Id) -> &'a Option<&'a str> {
         self.opt_singles.get(id).unwrap_or_else(|| panic!(format!(
             "No optional single-parameter argument found with id {}", id
         )))
     }
     
-    fn get_optional_multiple(&'a self, id: &Id) -> &'a Option<Vec<&'a str>> {
+    fn get_multiple_optional(&'a self, id: &Id) -> &'a Option<Vec<&'a str>> {
         self.opt_multiples.get(id).unwrap_or_else(|| panic!(format!(
             "No optional multiple-parameter argument found with id {}", id
         )))
@@ -385,7 +300,7 @@ impl <'a> ParsedArguments<'a> {
 /// corresponding argument is returned.
 pub enum ParseStatus<'a> {
     Parsed(ParsedArguments<'a>),
-    Interrupted(InterruptFlagTag),
+    Interrupted(InterruptFlagArgumentTag),
 }
 
 /// The result of a parse attempt.
@@ -405,13 +320,13 @@ pub struct ArgumentParser<'a> {
     next_id: Id,
     req_singles: Vec<Id>,
     req_vararg: Option<(Id, MultipleArguments)>,
-    opt_singles: HashMap<String, Id>,
-    opt_multiples: HashMap<String, (Id, MultipleArguments)>,
-    opt_flags: HashMap<String, Id>,
-    interrupt_flags: HashMap<String, InterruptFlagTag>,
-    taken_names: HashSet<String>,
-    req_descriptions: Vec<(String, String)>,
-    opt_descriptions: Vec<(String, String)>,
+    opt_singles: HashMap<ArgumentName<'a>, Id>,
+    opt_multiples: HashMap<ArgumentName<'a>, (Id, MultipleArguments)>,
+    opt_flags: HashMap<ArgumentName<'a>, Id>,
+    interrupt_flags: HashMap<ArgumentName<'a>, InterruptFlagArgumentTag>,
+    taken_names: HashSet<ArgumentName<'a>>,
+    req_descriptions: Vec<FullDescription<'a>>,
+    opt_descriptions: Vec<FullDescription<'a>>,
 }
 
 impl <'a> ArgumentParser<'a> {
@@ -454,7 +369,7 @@ impl <'a> ArgumentParser<'a> {
     
     
     /// Attempts to add a required single-parameter argument.
-    fn add_required_single(&mut self, arg: &RequiredSingleArgument<'a>) 
+    fn add_single_required(&mut self, arg: &SingleRequiredArgument<'a>) 
             -> Result<Id, String> {
         if self.req_vararg.is_some() {
             Err(format!(
@@ -471,7 +386,7 @@ impl <'a> ArgumentParser<'a> {
     }
     
     /// Attempts to add a required multiple-parameter argument.
-    fn add_required_multiple(&mut self, arg: &RequiredMultipleArguments<'a>)
+    fn add_multiple_required(&mut self, arg: &MultipleRequiredArguments<'a>)
             -> Result<Id, String> {
         if self.req_vararg.is_some() {
             Err(String::from(
@@ -485,12 +400,12 @@ impl <'a> ArgumentParser<'a> {
     }
     
     /// Attempts to add an interrupt flag.
-    fn add_interrupt_flag(&mut self, flag: &InterruptFlag<'a>)
-            -> Result<InterruptFlagTag, String> {
+    fn add_interrupt_flag(&mut self, flag: &InterruptFlagArgument<'a>)
+            -> Result<InterruptFlagArgumentTag, String> {
         let names = flag.name.create_names();
         try!(self.check_names(&names));
         let id = self.generate_id();
-        let tag = InterruptFlagTag { id: id };
+        let tag = InterruptFlagArgumentTag { id: id };
         for name in names {
             self.interrupt_flags.insert(name.clone(), tag.clone());
             self.taken_names.insert(name);
@@ -514,7 +429,7 @@ impl <'a> ArgumentParser<'a> {
     /// Registers a default help command for the parser with the flags
     /// '-h' and '--help'.
     pub fn add_default_help_interrupt(&mut self) 
-            -> Result<InterruptFlagTag, String> {
+            -> Result<InterruptFlagArgumentTag, String> {
         let arg = Argument::optional_short_and_long('h', "help").interrupt();
         arg.add_to(self)
     }
@@ -522,7 +437,7 @@ impl <'a> ArgumentParser<'a> {
     /// Registers a default version command for the parser with the flag
     /// '--version'.
     pub fn add_default_version_interrupt(&mut self) 
-            -> Result<InterruptFlagTag, String> {
+            -> Result<InterruptFlagArgumentTag, String> {
         let arg = Argument::optional_long("version").interrupt();
         arg.add_to(self)
     }

@@ -1,5 +1,10 @@
 #![allow(unused, dead_code)]
+
+#[macro_use]
+mod macros;
+
 mod parser;
+
 use parser::{ArgumentParser, Argument};
 use parser::ParseStatus::{Parsed, Interrupted};
 use std::env;
