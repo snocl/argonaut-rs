@@ -1,6 +1,7 @@
 #![allow(unused, dead_code)]
 mod parser;
-use parser::{ArgumentParser, Argument, ParseStatus};
+use parser::{ArgumentParser, Argument};
+use parser::ParseStatus::{Parsed, Interrupted};
 use std::env;
 
 fn main() {
@@ -16,14 +17,14 @@ fn main() {
         .add_to(&mut parser).unwrap();
     
     let f = Argument::optional_short('f').flag().add_to(&mut parser).unwrap();
-    
-    let status = parser.parse(&args);
-    
+
     //println!("Parser: {:?}", parser);
     //println!("Tag: {:?}", one);
-    
-    match status {
-        ParseStatus::Ok(parsed) => {
+
+    match parser.parse(&args) {
+        Err(err) => println!("Parse Error: {}", err),
+        
+        Ok(Parsed(parsed)) => {
             println!("Parser result:");
             println!("{:?}", parsed);
             println!("");
@@ -32,7 +33,8 @@ fn main() {
             println!("Two: {}", two.get(&parsed));
             println!("f: {}", f.get(&parsed));
         },
-        ParseStatus::Interrupt(tag) => {
+        
+        Ok(Interrupted(tag)) => {
             if tag == int_help {
                 println!("Help requested!");
             } else if tag == int_version {
@@ -40,9 +42,6 @@ fn main() {
             } else {
                 println!("Interrupt: {:?}", tag);
             }
-        },
-        ParseStatus::Err(error) => { 
-            println!("Parse error! ({})", error);
         }
     }
 }

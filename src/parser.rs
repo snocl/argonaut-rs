@@ -383,12 +383,13 @@ impl <'a> ParsedArguments<'a> {
 /// The result of a succesful parse. Either all the arguments are parsed and
 /// bound, or an interrupt flag is encountered and the handle of the
 /// corresponding argument is returned.
-#[must_use]
 pub enum ParseStatus<'a> {
-    Ok(ParsedArguments<'a>),
-    Interrupt(InterruptFlagTag),
-    Err(String),
+    Parsed(ParsedArguments<'a>),
+    Interrupted(InterruptFlagTag),
 }
+
+/// The result of a parse attempt.
+pub type ParseResult<'a> = Result<ParseStatus<'a>, String>;
 
 /// Creates the description strings for an argument with the given 
 /// names, parameter name and description.
@@ -526,15 +527,27 @@ impl <'a> ArgumentParser<'a> {
         arg.add_to(self)
     }
     
+    /// Returns a result indicating whether the parser takes the given argument.
+    pub fn check_argument(&self, argument: &String) -> Result<(), String> {
+        if ! self.taken_names.contains(argument) {
+            return Err(format!(
+                "Unrecognized argument: '{}'", argument
+            ))
+        }
+        Ok(())
+    }
+    
     /// Parses the given arguments or returns an error if they do not satisfy
     /// the declared arguments of the parser.
     pub fn parse(&self, args: &[String] )
-            -> ParseStatus<'a> {
+            -> ParseResult<'a> {
+       
+        use self::ParseStatus::*;
         
         // Check for interrupts first
         for arg in args {
             if let Some(tag) = self.interrupt_flags.get(arg) {
-                return ParseStatus::Interrupt(tag.clone())
+                return Ok(Interrupted(tag.clone()))
             }
         }
         
@@ -569,11 +582,7 @@ impl <'a> ArgumentParser<'a> {
             } else if arg.starts_with("-") {
                 // Single short flag
                 if arg.len() == 2 {
-                    if ! self.taken_names.contains(arg) {
-                        return ParseStatus::Err(format!(
-                            "Unrecognized flag: '{}'", arg
-                        ))
-                    }
+                    try!(self.check_argument(arg));
                     if let Some(id) = self.opt_flags.get(arg) {
                         opt_flags.insert(*id, true);
                     } else {
@@ -584,15 +593,11 @@ impl <'a> ArgumentParser<'a> {
                 } else { 
                     for letter in arg.chars().skip(1) {
                         let name = format!("-{}", letter);
-                        if !self.taken_names.contains(&name) {
-                            return ParseStatus::Err(format!(
-                                "Unrecognized flag: '{}'", name
-                            ));
-                        }
+                        try!(self.check_argument(&name));
                         if let Some(id) = self.opt_flags.get(&name) {
                             opt_flags.insert(*id, true);
                         } else {
-                            return ParseStatus::Err(format!(
+                            return Err(format!(
                                 "The short argument '{}' is not a flag, and \
                                 so cannot be grouped with other flags.\
                             ", name));
@@ -619,6 +624,6 @@ impl <'a> ArgumentParser<'a> {
             println!("Parsing '{}'", arg);
         }
         
-        ParseStatus::Ok(parsed)
+        Ok(Parsed(parsed))
     }
 }
