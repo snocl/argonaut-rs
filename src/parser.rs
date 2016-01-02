@@ -11,7 +11,7 @@ type Id = usize;
 //static mut PARSER_ID: Id = 1;
 
 /// The name of an argument.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 enum ArgumentName<'a> {
     Short(char),
     Long(&'a str),
@@ -20,21 +20,22 @@ enum ArgumentName<'a> {
 /// An argument that takes multiple parameters.
 #[derive(Debug, Clone)]
 enum MultipleArguments {
-    Count(usize),
     ZeroOrMore,
     OneOrMore,
 }
 
+/// The possible types of arguments.
+#[derive(Debug, Clone)]
 enum ArgumentType {
     SingleRequired,
     MultipleRequired(MultipleArguments),
-    
-    
-    
+    SingleOptional,
+    MultipleOptional,
+    Flag,
 }
 
 /// The full description of an argument.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FullDescription<'a> {
     names: Vec<ArgumentName<'a>>,
     argtype: ArgumentType,
@@ -45,10 +46,11 @@ struct FullDescription<'a> {
 impl <'a> FullDescription<'a> {
     /// Creates a new description.
     fn new(names: Vec<ArgumentName<'a>>, param_name: Option<&'a str>, 
-            help: Option<&'a str>) 
+            argtype: ArgumentType, help: Option<&'a str>) 
             -> FullDescription<'a> {
         FullDescription {
             names: names,
+            argtype: argtype,
             param_name: param_name,
             help: help,
         }
@@ -59,6 +61,14 @@ impl <'a> FullDescription<'a> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct InterruptFlagArgumentTag {
     id: Id
+}
+
+/// The name of an optional argument.
+#[derive(Debug, Clone)]
+enum OptionalName<'a> {
+    Short(char),
+    Long(&'a str),
+    ShortAndLong(char, &'a str),
 }
 
 // Declare and implement all the handles and their 'get' methods.
@@ -74,14 +84,15 @@ tag_structs! {
 // ========================= Specialized arguments =============================
 // =============================================================================
 
-argument_structs! {
+/*argument_structs! {
     /// A required single-parameter argument.
     SingleRequiredArgument {
         name: &'a str
     }
     add_single_required -> SingleRequiredTag
-}
+}*/
 
+/*
 /// A required multiple-parameter argument.
 #[derive(Debug, Clone)]
 pub struct MultipleRequiredArguments<'a> {
@@ -126,11 +137,58 @@ impl <'a> FlagArgument<'a> {
         Ok(FlagTag { id: id })
     }
 }
+*/
 
 // =============================================================================
 // ======================== Argument count builders ============================
 // =============================================================================
 
+argument_type_structs! {
+    common: Required {
+        name: &'a str,
+        help: Option<&'a str>
+    }
+    
+    SingleRequiredArgument {}
+    tag: add_single_required -> SingleRequiredTag,
+    
+    constructors: {
+        single() -> {}
+    }
+    
+    MultipleRequiredArguments {
+        argtype: MultipleArguments
+    }
+    tag: add_multiple_required -> MultipleRequiredTag,
+    
+    constructors: {
+        
+    }
+}
+
+argument_type_structs! {
+    common: Optional {
+        name: OptionalName<'a>,
+        help: Option<&'a str>
+    }
+    
+    InterruptFlagArgument {}
+    tag: add_interrupt_flag -> InterruptFlagArgumentTag,
+    
+    constructors: {
+        interrupt() -> {}
+    }
+    
+    FlagArgument {}
+    tag: add_flag -> FlagTag,
+    
+    constructors: {
+        flag() -> {}
+    }
+    
+}
+
+/*
 /// A required argument.
 #[derive(Debug)]
 pub struct Required<'a> {
@@ -141,30 +199,7 @@ impl <'a> Required<'a> {
     pub fn single(self) -> SingleRequiredArgument<'a> {
         SingleRequiredArgument {
             name: self.name,
-            desc: ArgumentDescription::empty(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-enum OptionalName<'a> {
-    Short(char),
-    Long(&'a str),
-    ShortAndLong(char, &'a str),
-}
-
-impl <'a> OptionalName<'a> {
-    fn create_names(&self) -> Vec<String> {
-        match self {
-            &OptionalName::Short(ch) => {
-                vec![format!("-{}", ch)]
-            },
-            &OptionalName::Long(long) => {
-                vec![format!("--{}", long)]
-            },
-            &OptionalName::ShortAndLong(ch, long) => {
-                vec![format!("-{}", ch), format!("--{}", long)]
-            }
+            help: None,
         }
     }
 }
@@ -194,6 +229,7 @@ impl <'a> Optional<'a> {
         }
     }
 }
+*/
 
 // =============================================================================
 // ========================== Argument constructors ============================
@@ -206,7 +242,8 @@ impl <'a> Argument {
     /// Creates a builder for a new required argument with the given name.
     pub fn required(name: &'a str) -> Required<'a> {
         Required {
-            name: name
+            name: name,
+            help: None,
         }
     }
     
@@ -214,7 +251,8 @@ impl <'a> Argument {
     /// prefixed by '-' (eg '-a').
     pub fn optional_short(name: char) -> Optional<'a> {
         Optional {
-            name: OptionalName::Short(name)
+            name: OptionalName::Short(name),
+            help: None,
         }
     }
     
@@ -222,7 +260,8 @@ impl <'a> Argument {
     /// prefixed by '--' (eg '--all').
     pub fn optional_long(name: &'a str) -> Optional<'a> {
         Optional {
-            name: OptionalName::Long(name)
+            name: OptionalName::Long(name),
+            help: None,
         }
     }
     
@@ -232,7 +271,8 @@ impl <'a> Argument {
     pub fn optional_short_and_long(short_name: char, long_name: &'a str) 
             -> Optional<'a> {
         Optional {
-            name: OptionalName::ShortAndLong(short_name, long_name)
+            name: OptionalName::ShortAndLong(short_name, long_name),
+            help: None,
         }
     }
 }
@@ -366,11 +406,9 @@ impl <'a> ArgumentParser<'a> {
         Ok(())
     }
     
-    
-    
     /// Attempts to add a required single-parameter argument.
     fn add_single_required(&mut self, arg: &SingleRequiredArgument<'a>) 
-            -> Result<Id, String> {
+            -> Result<SingleRequiredTag, String> {
         if self.req_vararg.is_some() {
             Err(format!(
                 "Could not add the argument '{}', since all required \
@@ -381,13 +419,13 @@ impl <'a> ArgumentParser<'a> {
             let id = self.generate_id();
             //self.req_descriptions.push(create)
             self.req_singles.push(id);
-            Ok(id)
+            Ok( SingleRequiredTag { id: id } )
         }
     }
     
     /// Attempts to add a required multiple-parameter argument.
     fn add_multiple_required(&mut self, arg: &MultipleRequiredArguments<'a>)
-            -> Result<Id, String> {
+            -> Result<MultipleRequiredTag, String> {
         if self.req_vararg.is_some() {
             Err(String::from(
                 "A required multi-count argument is already defined\
@@ -395,7 +433,7 @@ impl <'a> ArgumentParser<'a> {
         } else {
             let id = self.generate_id();
             self.req_vararg = Some((id, arg.argtype.clone()));
-            Ok(id)
+            Ok( MultipleRequiredTag { id: id } )
         }
     }
     
@@ -415,7 +453,7 @@ impl <'a> ArgumentParser<'a> {
     
     /// Attempts to add a flag.
     fn add_flag(&mut self, flag: &FlagArgument<'a>) 
-            -> Result<Id, String> {
+            -> Result<FlagTag, String> {
         let names = flag.name.create_names();
         try!(self.check_names(&names));
         let id = self.generate_id();
@@ -423,7 +461,7 @@ impl <'a> ArgumentParser<'a> {
             self.opt_flags.insert(name.clone(), id);
             self.taken_names.insert(name);
         }
-        Ok(id)
+        Ok( FlagTag { id: id } )
     }
     
     /// Registers a default help command for the parser with the flags
