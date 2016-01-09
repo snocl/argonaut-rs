@@ -1,11 +1,6 @@
 
-# Unsupported (/roadplan)
-- --flag
-- -f | --flag arg
-- -f | --flag arg [arg, ...]
-- -f | --flag [arg, [arg, ...]]
-- arg
-- arg [arg, ...]
-- [arg, [arg, ...]]
-- '--' switch to ignore all further arguments
-- 'counter' flag (for instance -vvv to set verbosity to 3)
+# Terminology
+Flag: The identifying token for an argument (--flag)
+Switch: A flag with no arguments that is either *there* or *not there*
+Parameter: Tokens following an argument.
+Trail: Zero or more tokens that follow the required positional arguments.
