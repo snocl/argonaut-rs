@@ -5,7 +5,6 @@ use argonaut::{Parser, Arg};
 use argonaut::ParseStatus::{Parsed, Interrupted};
 use std::env;
 
-
 fn main() {
     println!("Argonaut!");
     
@@ -83,8 +82,5 @@ fn main() {
         Err(error) => {
             println!("Parse error: {:?}", error);
         },
-    }
-    
-    
-    
+    } 
 }
