@@ -6,3 +6,4 @@ description = "A simple argument parser"
 readme = "README.md"
 keywords = ["argument", "parser", "cli", "commandline", "argparse"]
 license = "MIT"
+repository = "https://github.com/Machtan/argonaut-rs"
