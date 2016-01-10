@@ -20,7 +20,7 @@ fn main() {
     let mut parser = Parser::new();
     
     // Create the arguments
-    let foo     = Arg::positional();
+    let foo     = Arg::positional("foo");
     let bar     = Arg::required_trail();
     let help    = Arg::short_and_long('h', "help").interrupt();
     let version = Arg::long("version").interrupt();
@@ -46,10 +46,10 @@ fn main() {
             println!("Parsed succesfully!");
             
             // get positional argument 0 and assert that a such exists
-            println!("Foo: {}", parsed.positional[0]);
+            println!("Foo: {}", parsed.positional("foo").unwrap());
             
             // Get the trail from 1 and out
-            println!("Bar: {:?}", &parsed.positional[1..]);
+            println!("Bar: {:?}", parsed.trail().unwrap());
             
             // Check a 'switch' by its long name
             println!("Verbose: {}", parsed.long("verbose").switch().unwrap());

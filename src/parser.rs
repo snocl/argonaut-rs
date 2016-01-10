@@ -8,7 +8,7 @@ use parsed_args::ParsedArgs;
 /// The different kinds of arguments that can be given to the parser.
 #[derive(Debug, Clone)]
 enum ArgType<'a> {
-    Single,
+    Single(&'a str),
     ZeroPlus,
     OnePlus,
     OptSingle(OptName<'a>),
@@ -26,8 +26,8 @@ pub struct Arg<'a> {
 
 impl<'a> Arg<'a> {    
     /// Creates a positional argument with the given parameter name.
-    pub fn positional() -> Arg<'a> {
-        Arg { argtype: ArgType::Single }
+    pub fn positional(name: &'a str) -> Arg<'a> {
+        Arg { argtype: ArgType::Single(name) }
     }
     
     /// Creates an argument that requires zero or more trailing parameters.
@@ -144,10 +144,10 @@ pub enum ParseError<'a> {
     /// The given short flag takes input and therefore cannot be grouped when
     /// used (if '-x' takes the argument 'FOO', you cannot call '-vasx').
     GroupedNonFlag(String),
-    /// The given argument is missing a parameter.
+    /// The argument is missing a parameter.
     MissingParameter(String),
-    /// The argument at the given position is missing.
-    MissingArgument(usize),
+    /// The positional argument with this name is missing.
+    MissingArgument(&'a str),
     /// The required trail argument is missing.
     MissingTrail,
     /// The given positional arguments were not expected by the parser.
@@ -267,7 +267,7 @@ fn find_parameters<'a, 'b>(name: &FlagName<'b>, opt_type: &OptType,
 /// An argument parser.
 #[derive(Debug)]
 pub struct Parser<'a> {
-    positions: usize,
+    positional: Vec<&'a str>,
     trail: Option<ReqType>,
     options: HashMap<OptName<'a>, OptType>,
     switches: HashSet<OptName<'a>>,
@@ -280,7 +280,7 @@ impl<'a> Parser<'a> {
     /// Creates a new parser with the given title.
     pub fn new() -> Self {
         Parser {
-            positions: 0,
+            positional: Vec::new(),
             trail: None,
             options: HashMap::new(),
             switches: HashSet::new(),
@@ -312,8 +312,15 @@ impl<'a> Parser<'a> {
         }
         
         match arg.argtype {
-            Single => {
-                self.positions += 1;
+            Single(name) => {
+                if self.positional.contains(&name) {
+                    return Err(format!(
+                        "A positional argument with the name '{}' has already \
+                        been added", name
+                    ));
+                } else {
+                    self.positional.push(name);
+                }
             },
             ZeroPlus => {
                 if self.trail.is_some() {
@@ -442,12 +449,14 @@ impl<'a> Parser<'a> {
         
         // Ensure that enough positional arguments are given
         
+        
         // Fewer than the positional arguments
-        if positional.len() < self.positions {
-            return Err(MissingArgument(positional.len()));
+        let positions = self.positional.len();
+        if positional.len() < positions {
+            return Err(MissingArgument(self.positional[positional.len()]));
             
         // Only the positional arguments
-        } else if positional.len() == self.positions {
+        } else if positional.len() == positions {
             if let Some(ReqType::OnePlus) = self.trail {
                 return Err(MissingTrail);
             }
@@ -456,15 +465,25 @@ impl<'a> Parser<'a> {
         } else {
             if let None = self.trail {
                 let mut unexpected = Vec::new();
-                unexpected.extend(positional[self.positions..].iter());
+                unexpected.extend(positional[positions..].iter());
                 return Err(UnexpectedArguments(unexpected))
             }
         }
         
+        let mut positional_args: HashMap<&str, &str> = HashMap::new();
+        for (num, posname) in self.positional.iter().enumerate() {
+            positional_args.insert(posname, positional[num]);
+        }
         
+        let trail = if self.trail.is_some() {
+            Some(positional[positions..].iter().map(|s| *s).collect::<Vec<_>>())
+        } else {
+            None
+        };
         
         let parsed = ParsedArgs::new(
-            positional, 
+            positional_args, 
+            trail,
             singles, 
             multiples, 
             switches, 
