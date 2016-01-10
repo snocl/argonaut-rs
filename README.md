@@ -5,7 +5,6 @@ An argument parser for Rust, that grants as much control over the parser as poss
 This can be found in *examples/main.rs* as well, and be run with ```cargo run --example main```.
 
 ```rust
-// Created by Jakob Lautrup Nysom @ 31-12-2015
 extern crate argonaut;
 
 use argonaut::{Parser, Arg};
@@ -52,10 +51,10 @@ fn main() {
         Ok(Parsed(parsed)) => {
             println!("Parsed succesfully!");
             
-            // get positional argument 0 and assert that a such exists
+            // Get positional argument 'foo'
             println!("Foo: {}", parsed.positional("foo").unwrap());
             
-            // Get the trail from 1 and out
+            // Get the trail (remaining arguments after the declared ones)
             println!("Bar: {:?}", parsed.trail().unwrap());
             
             // Check a 'switch' by its long name
@@ -91,6 +90,7 @@ fn main() {
         },
     } 
 }
+
 ```
 
 # Terminology

@@ -45,10 +45,10 @@ fn main() {
         Ok(Parsed(parsed)) => {
             println!("Parsed succesfully!");
             
-            // get positional argument 0 and assert that a such exists
+            // Get positional argument 'foo'
             println!("Foo: {}", parsed.positional("foo").unwrap());
             
-            // Get the trail from 1 and out
+            // Get the trail (remaining arguments after the declared ones)
             println!("Bar: {:?}", parsed.trail().unwrap());
             
             // Check a 'switch' by its long name
