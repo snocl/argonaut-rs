@@ -5,6 +5,7 @@ An argument parser for Rust, that grants as much control over the parser as poss
 This can be found in *examples/main.rs* as well, and be run with ```cargo run --example main```.
 
 ```rust
+// Created by Jakob Lautrup Nysom @ 31-12-2015
 extern crate argonaut;
 
 use argonaut::{Parser, Arg};
@@ -27,13 +28,13 @@ fn main() {
     
     // Create the arguments
     let foo     = Arg::positional("foo");
-    let bar     = Arg::required_trail("bar");
-    let help    = Arg::short_and_long('h', "help").interrupt_flag();
-    let version = Arg::long("version").interrupt_flag();
-    let verbose = Arg::short_and_long('v', "verbose").flag();
-    let exclude = Arg::short_and_long('x', "exclude").single(Some("foo"));
-    let extra   = Arg::short('e').zero_or_more(None);
-    let add     = Arg::short_and_long('a', "add").one_or_more(None);
+    let bar     = Arg::required_trail();
+    let help    = Arg::short_and_long('h', "help").interrupt();
+    let version = Arg::long("version").interrupt();
+    let verbose = Arg::short_and_long('v', "verbose").switch();
+    let exclude = Arg::short_and_long('x', "exclude").single();
+    let extra   = Arg::short('e').zero_or_more();
+    let add     = Arg::short_and_long('a', "add").one_or_more();
     
     // Add them, and assert that none of the named ones overlap
     parser.add(&foo).unwrap();
@@ -52,10 +53,10 @@ fn main() {
             println!("Parsed succesfully!");
             
             // get positional argument 0 and assert that a such exists
-            println!("Foo: {}", parsed.positional(0).unwrap());
+            println!("Foo: {}", parsed.positional("foo").unwrap());
             
             // Get the trail from 1 and out
-            println!("Bar: {:?}", parsed.trail(1).unwrap());
+            println!("Bar: {:?}", parsed.trail().unwrap());
             
             // Check a 'switch' by its long name
             println!("Verbose: {}", parsed.long("verbose").switch().unwrap());
