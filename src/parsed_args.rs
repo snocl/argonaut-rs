@@ -6,7 +6,7 @@ use common::{FlagName, OptName, convert_flag_name};
 /// The parsed arguments of a succesful parsing.
 #[derive(Debug)]
 pub struct ParsedArgs<'a> {
-    positional: Vec<&'a str>,
+    pub positional: Vec<&'a str>,
     singles: HashMap<OptName<'a>, Option<&'a str>>,
     multiples: HashMap<OptName<'a>, Option<Vec<&'a str>>>,
     switches: HashMap<OptName<'a>, bool>,
@@ -41,30 +41,6 @@ impl<'a> ParsedArgs<'a> {
     pub fn short(&'a self, name: char) -> ParsedArgsAccess<'a> {
         let opt_name = convert_flag_name(&self.aliases, &FlagName::Short(name));
         ParsedArgsAccess { name: opt_name, args: &self }
-    }
-    
-    /// Returns the value of given positional argument.
-    pub fn positional(&self, index: usize) -> Result<&'a str, String> {
-        if index >= self.positional.len() {
-            Err(format!(
-                "There are only {} (<= {}) positional arguments",
-                self.positional.len(), index
-            ))
-        } else {
-            Ok(self.positional[index])
-        }
-    }
-    
-    /// Returns the arguments after the given position.
-    pub fn trail(&self, from: usize) -> Result<&[&'a str], String> {
-        if from > self.positional.len() {
-            Err(format!(
-                "There are only {} (< {}), positional arguments", 
-                self.positional.len(), from
-            ))
-        } else {
-            Ok(&self.positional[from..])
-        }
     }
 }
 

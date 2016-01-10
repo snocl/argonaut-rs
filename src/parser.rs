@@ -6,52 +6,38 @@ use common::{FlagName, OptName, convert_flag_name};
 use parsed_args::ParsedArgs;
 
 /// The different kinds of arguments that can be given to the parser.
-#[derive(Debug)]
-pub enum ArgType<'a> {
-    Single(&'a str),
-    ZeroPlus(&'a str),
-    OnePlus(&'a str),
+#[derive(Debug, Clone)]
+enum ArgType<'a> {
+    Single,
+    ZeroPlus,
+    OnePlus,
     OptSingle(OptName<'a>),
     OptZeroPlus(OptName<'a>),
     OptOnePlus(OptName<'a>),
-    Flag(OptName<'a>),
-    InterruptFlag(OptName<'a>),
+    Switch(OptName<'a>),
+    Interrupt(OptName<'a>),
 }
 
 /// An argument description for the parser. Use methods on 'arg' to create them.
 #[derive(Debug)]
 pub struct Arg<'a> {
     argtype: ArgType<'a>,
-    param: Option<&'a str>,
-    help: Option<&'a str>,
 }
 
-impl<'a> Arg<'a> {
-    /// Sets the help text for this argument.
-    pub fn help(mut self, help: &'a str) -> Self {
-        self.help = Some(help);
-        self
-    }
-    
+impl<'a> Arg<'a> {    
     /// Creates a positional argument with the given parameter name.
-    pub fn positional(parameter: &'a str) -> Arg<'a> {
-        Arg { 
-            argtype: ArgType::Single(parameter), param: None, help: None
-        }
+    pub fn positional() -> Arg<'a> {
+        Arg { argtype: ArgType::Single }
     }
     
     /// Creates an argument that requires zero or more trailing parameters.
-    pub fn optional_trail(parameter: &'a str) -> Arg<'a> {
-        Arg { 
-            argtype: ArgType::ZeroPlus(parameter), param: None, help: None
-        }
+    pub fn optional_trail() -> Arg<'a> {
+        Arg { argtype: ArgType::ZeroPlus }
     }
     
     /// Creates an argument requires one or more trailing parameters.
-    pub fn required_trail(parameter: &'a str) -> Arg<'a> {
-        Arg { 
-            argtype: ArgType::OnePlus(parameter), param: None, help: None
-        }
+    pub fn required_trail() -> Arg<'a> {
+        Arg { argtype: ArgType::OnePlus }
     }
     
     /// Creates a new optional argument with a short name (ex 'h' for -h).
@@ -76,8 +62,8 @@ impl<'a> Arg<'a> {
               OptSingle(ref optname) 
             | OptZeroPlus(ref optname) 
             | OptOnePlus(ref optname) 
-            | Flag(ref optname) 
-            | InterruptFlag(ref optname) => Some(optname),
+            | Switch(ref optname) 
+            | Interrupt(ref optname) => Some(optname),
             _ => None,
         }
     }
@@ -91,38 +77,28 @@ pub struct OptArg<'a> {
 
 impl<'a> OptArg<'a> {
     /// The argument takes a single parameter.
-    pub fn single(self, param: Option<&'a str>) -> Arg<'a> {
-        Arg { 
-            argtype: ArgType::OptSingle(self.name), param: param, help: None
-        }
+    pub fn single(self) -> Arg<'a> {
+        Arg { argtype: ArgType::OptSingle(self.name) }
     }
     
     /// The argument takes one or more parameters.
-    pub fn one_or_more(self, param: Option<&'a str>) -> Arg<'a> {
-        Arg {
-            argtype: ArgType::OptOnePlus(self.name), param: param, help: None
-        }
+    pub fn one_or_more(self) -> Arg<'a> {
+        Arg { argtype: ArgType::OptOnePlus(self.name) }
     }
     
     /// The argument takes zero or more parameters.
-    pub fn zero_or_more(self, param: Option<&'a str>) -> Arg<'a> {
-        Arg {
-            argtype: ArgType::OptZeroPlus(self.name), param: param, help: None
-        }
+    pub fn zero_or_more(self) -> Arg<'a> {
+        Arg { argtype: ArgType::OptZeroPlus(self.name) }
     }
     
-    /// The argument is a flag. Only valid for optional arguments.
-    pub fn flag(self) -> Arg<'a> {
-        Arg {
-            argtype: ArgType::Flag(self.name), param: None, help: None
-        }
+    /// The argument is an interrupt (the parse is interrupted when it is encountered).
+    pub fn interrupt(self) -> Arg<'a> {
+        Arg { argtype: ArgType::Interrupt(self.name) }
     }
     
-    /// The argument is an interrupt flag. Only valid for optional arguments.
-    pub fn interrupt_flag(self) -> Arg<'a> {
-        Arg {
-            argtype: ArgType::InterruptFlag(self.name), param: None, help: None
-        }
+    /// The argument is a switch (boolean flag).
+    pub fn switch(self) -> Arg<'a> {
+        Arg { argtype: ArgType::Switch(self.name) }
     }
 }
 
@@ -170,10 +146,10 @@ pub enum ParseError<'a> {
     GroupedNonFlag(String),
     /// The given argument is missing a parameter.
     MissingParameter(String),
-    /// The given positional argument is missing.
-    MissingArgument(&'a str),
-    /// The given trail argument is missing.
-    MissingTrail(&'a str),
+    /// The argument at the given position is missing.
+    MissingArgument(usize),
+    /// The required trail argument is missing.
+    MissingTrail,
     /// The given positional arguments were not expected by the parser.
     UnexpectedArguments(Vec<&'a str>)
 }
@@ -291,11 +267,11 @@ fn find_parameters<'a, 'b>(name: &FlagName<'b>, opt_type: &OptType,
 /// An argument parser.
 #[derive(Debug)]
 pub struct Parser<'a> {
-    positional: Vec<&'a str>,
-    trail: Option<(&'a str, ReqType)>,
+    positions: usize,
+    trail: Option<ReqType>,
     options: HashMap<OptName<'a>, OptType>,
     switches: HashSet<OptName<'a>>,
-    interrupt_flags: HashSet<OptName<'a>>,
+    interrupts: HashSet<OptName<'a>>,
     used_flags: HashSet<FlagName<'a>>,
     aliases: HashMap<FlagName<'a>, OptName<'a>>,
 }
@@ -304,11 +280,11 @@ impl<'a> Parser<'a> {
     /// Creates a new parser with the given title.
     pub fn new() -> Self {
         Parser {
-            positional: Vec::new(),
+            positions: 0,
             trail: None,
             options: HashMap::new(),
             switches: HashSet::new(),
-            interrupt_flags: HashSet::new(),
+            interrupts: HashSet::new(),
             used_flags: HashSet::new(),
             aliases: HashMap::new(),
         }
@@ -336,39 +312,31 @@ impl<'a> Parser<'a> {
         }
         
         match arg.argtype {
-            Single(name) => {
-                self.positional.push(name);
+            Single => {
+                self.positions += 1;
             },
-            ZeroPlus(name) => {
-                match self.trail {
-                    Some((ref name, _)) => {
-                        return Err(format!(
-                            "A trailing argument has already been set ('{}')",
-                            name
-                        ));
-                    }
-                    _ => {},
+            ZeroPlus => {
+                if self.trail.is_some() {
+                    return Err(format!(
+                        "A trailing argument has already been set",
+                    ));
                 }
-                self.trail = Some((name, ReqType::ZeroPlus))
+                self.trail = Some(ReqType::ZeroPlus)
             },
-            OnePlus(name) => {
-                match self.trail {
-                    Some((ref name, _)) => {
-                        return Err(format!(
-                            "A trailing argument has already been set ('{}')",
-                            name
-                        ));
-                    }
-                    _ => {},
+            OnePlus => {
+                if self.trail.is_some() {
+                    return Err(format!(
+                        "A trailing argument has already been set",
+                    ));
                 }
-                self.trail = Some((name, ReqType::OnePlus))
+                self.trail = Some(ReqType::OnePlus)
             
             },
-            Flag(ref optname) => {
+            Switch(ref optname) => {
                 self.switches.insert(optname.clone());
             },
-            InterruptFlag(ref optname) => {
-                self.interrupt_flags.insert(optname.clone());
+            Interrupt(ref optname) => {
+                self.interrupts.insert(optname.clone());
             },
               OptSingle(ref optname) 
             | OptZeroPlus(ref optname) 
@@ -400,7 +368,7 @@ impl<'a> Parser<'a> {
             if let &Flag(ref name) = arg {
                 let optname = convert_flag_name(&self.aliases, name);
                 //println!("Optname: {:?}", optname);
-                if self.interrupt_flags.contains(&optname) {
+                if self.interrupts.contains(&optname) {
                     return Ok(Interrupted(optname));
                 }
                 
@@ -475,22 +443,20 @@ impl<'a> Parser<'a> {
         // Ensure that enough positional arguments are given
         
         // Fewer than the positional arguments
-        let expected_len = self.positional.len();
-        let found_len = positional.len();
-        if found_len < expected_len {
-            return Err(MissingArgument(self.positional[found_len]))
+        if positional.len() < self.positions {
+            return Err(MissingArgument(positional.len()));
             
         // Only the positional arguments
-        } else if found_len == expected_len {
-            if let Some((name, ReqType::OnePlus)) = self.trail {
-                return Err(MissingTrail(name));
+        } else if positional.len() == self.positions {
+            if let Some(ReqType::OnePlus) = self.trail {
+                return Err(MissingTrail);
             }
         
         // More than the positional arguments
         } else {
             if let None = self.trail {
                 let mut unexpected = Vec::new();
-                unexpected.extend(positional[expected_len..].iter());
+                unexpected.extend(positional[self.positions..].iter());
                 return Err(UnexpectedArguments(unexpected))
             }
         }
