@@ -52,16 +52,16 @@ fn main() {
             println!("Bar: {:?}", parsed.trail().unwrap());
             
             // Check a 'switch' by its long name
-            println!("Verbose: {}", parsed.long("verbose").switch().unwrap());
+            println!("Verbose: {}", parsed.named("verbose").switch().unwrap());
             
             // Check flag taking a single parameter by its short name
-            println!("Exclude: {:?}", parsed.short('x').single().unwrap());
+            println!("Exclude: {:?}", parsed.named("exclude").single().unwrap());
             
             // Check a flag taking multiple parameters by its short name
-            println!("Extra: {:?}", parsed.short('e').multiple().unwrap());
+            println!("Extra: {:?}", parsed.named("extra").multiple().unwrap());
             
             // Check a flag taking multiple parameters by its long name
-            println!("Add: {:?}", parsed.long("add").multiple().unwrap());
+            println!("Add: {:?}", parsed.named("add").multiple().unwrap());
         },
         
         // The parse succeeded, by finding one of the 'interrupt flags'

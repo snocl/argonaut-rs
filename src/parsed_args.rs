@@ -46,14 +46,8 @@ impl<'a> ParsedArgs<'a> {
     }
     
     /// Accesses a flag with the given long name in the parsed arguments.
-    pub fn long(&'a self, name: &'a str) -> ParsedArgsAccess<'a> {
+    pub fn named(&'a self, name: &'a str) -> ParsedArgsAccess<'a> {
         let opt_name = convert_flag_name(&self.aliases, &FlagName::Long(name));
-        ParsedArgsAccess { name: opt_name, args: &self }
-    }
-    
-    /// Accesses a flag with the given short name in the parsed arguments.
-    pub fn short(&'a self, name: char) -> ParsedArgsAccess<'a> {
-        let opt_name = convert_flag_name(&self.aliases, &FlagName::Short(name));
         ParsedArgsAccess { name: opt_name, args: &self }
     }
     

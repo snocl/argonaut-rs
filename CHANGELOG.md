@@ -1,4 +1,8 @@
 # Changes
+## 0.5.0
+- Named arguments are now accessed with ```named``` on the parsed args.
+- Parsed arguments can no longer be accessed with a short name.
+
 ## 0.4.0
 - Named arguments are now required to have a 'long' name (eg --help).
 - Renamed the optional argument constructors and the order of their arguments. 
