@@ -1,8 +1,20 @@
 # Argonaut
 An argument parser for Rust, that grants as much control over the parser as possible.
 
+## Argument conversion
+This means that the arguments are *not* converted to other types (except for switches that are boolean by default).
+
+## Help messages
+It also means that help messages are not handled either. Just write it yourself, and make it **NICE!**
+
+## Error handling
+The actual argument parsing returns errors that should be pretty simple to convey to users, but these are not handled by the parser either.
+
+Adding arguments to the parser and accessing arguments on the parsed arguments will only return an error string, as they may only have *logical* errors, such as adding arguments that would overwrite each other, or trying to access a parsed argument using an invalid identifier.
+
 # Example
-This can be found in *examples/main.rs* as well, and be run with ```cargo run --example main```.
+This can be found in *examples/main.rs* as well, and be run with ```cargo run --example main -- foo bar -x baz --verbose -e extra1 extra2 --add a b c```.
+You can also try running it without the arguments, but these arguments will make the parse **succeed**.
 
 ```rust
 extern crate argonaut;
