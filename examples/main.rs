@@ -22,12 +22,12 @@ fn main() {
     // Create the arguments
     let foo     = Arg::positional("foo");
     let bar     = Arg::required_trail();
-    let help    = Arg::short_and_long('h', "help").interrupt();
-    let version = Arg::long("version").interrupt();
-    let verbose = Arg::short_and_long('v', "verbose").switch();
-    let exclude = Arg::short_and_long('x', "exclude").single();
-    let extra   = Arg::short('e').zero_or_more();
-    let add     = Arg::short_and_long('a', "add").one_or_more();
+    let help    = Arg::named_and_short("help", 'h').interrupt();
+    let version = Arg::named("version").interrupt();
+    let verbose = Arg::named_and_short("verbose", 'v').switch();
+    let exclude = Arg::named_and_short("exclude", 'x').single();
+    let extra   = Arg::named_and_short("extra", 'e').zero_or_more();
+    let add     = Arg::named_and_short("add", 'a').one_or_more();
     
     // Add them, and assert that none of the named ones overlap
     parser.add(&foo).unwrap();
@@ -73,7 +73,7 @@ fn main() {
                 println!("Help requested!");
             
             // Test whether it is the given long argument
-            } else if flag.is_long("version") {
+            } else if flag.is("version") {
                 println!("Version ZERO POINT ZERO!");
             }
         }

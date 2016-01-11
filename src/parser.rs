@@ -41,18 +41,14 @@ impl<'a> Arg<'a> {
     }
     
     /// Creates a new optional argument with a short name (ex 'h' for -h).
-    pub fn short(name: char) -> OptArg<'a> {
-        OptArg { name: OptName::Short(name) }
+    pub fn named_and_short(name: &'a str, short: char) -> OptArg<'a> {
+        OptArg { name: OptName::NormalAndShort(name, short) }
     }
     
-    /// Creates a new optional argument with a long name (ex "help" for --help).
-    pub fn long(name: &'a str) -> OptArg<'a> {
-        OptArg { name: OptName::Long(name) }
-    }
-    
-    /// Creates a new optional argument with both a short and a long name.
-    pub fn short_and_long(short: char, long: &'a str) -> OptArg<'a> {
-        OptArg { name: OptName::ShortAndLong(short, long) }
+    /// Creates a new optional argument with the given flag name.
+    /// (ex "help" for --help).
+    pub fn named(name: &'a str) -> OptArg<'a> {
+        OptArg { name: OptName::Normal(name) }
     }
     
     /// Returns the option name of this argument.
@@ -114,9 +110,8 @@ enum OptType {
 fn optional_flag_names<'a>(name: &OptName<'a>) -> Vec<FlagName<'a>> {
     use common::FlagName::*;
     match name {
-        &OptName::Short(ch) => vec![Short(ch)],
-        &OptName::Long(long) => vec![Long(long)],
-        &OptName::ShortAndLong(ch, long) => vec![Short(ch), Long(long)],
+        &OptName::Normal(long) => vec![Long(long)],
+        &OptName::NormalAndShort(long, ch) => vec![Short(ch), Long(long)],
     }
 }
 

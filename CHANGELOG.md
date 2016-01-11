@@ -1,4 +1,13 @@
 # Changes
+## 0.4.0
+- Named arguments are now required to have a 'long' name (eg --help).
+- Renamed the optional argument constructors and the order of their arguments. 
+- ```long``` becomes ```named```.
+- ```short and long``` becomes ```named_and_short```.
+- ```short``` is removed.
+- Renamed the member function to check the value of an interrupt flag.
+- ```is_long``` becomes ```is```.
+
 ## 0.3.1
 - Updated cargo.toml to **also** say that the license is *either* **MIT** or **Apache 2.0**.
 
