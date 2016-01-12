@@ -128,7 +128,7 @@ enum ReqType {
 #[derive(Debug)]
 pub enum ParseStatus<'a> {
     Parsed(ParsedArgs<'a>),
-    Interrupted(OptName<'a>),
+    Interrupted(&'a str),
 }
 
 /// An error found when attempting to parse a set of arguments.
@@ -371,7 +371,7 @@ impl<'a> Parser<'a> {
                 let optname = convert_flag_name(&self.aliases, name);
                 //println!("Optname: {:?}", optname);
                 if self.interrupts.contains(&optname) {
-                    return Ok(Interrupted(optname));
+                    return Ok(Interrupted(optname.long()));
                 }
                 
                 // SAFE_FLAGS: Validate that all flags are valid

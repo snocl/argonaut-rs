@@ -6,6 +6,5 @@ mod common;
 mod parsed_args;
 mod parser;
 
-pub use common::OptName;
 pub use parser::{Parser, Arg, ParseStatus, OptArg};
 pub use parsed_args::{ParsedArgs, ParsedArgsAccess};

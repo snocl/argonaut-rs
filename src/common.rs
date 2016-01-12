@@ -36,20 +36,10 @@ pub enum OptName<'a> {
 }
 
 impl<'a> OptName<'a> {
-    /// Returns whether this flag is the given long option (ex "help" for --help).
-    pub fn is(&self, other: &str) -> bool {
-        use self::OptName::*;
+    /// Returns the long name of this optional argument
+    pub fn long(&self) -> &'a str {
         match self {
-            &Normal(name) | &NormalAndShort(name, _) => name == other,
-        }
-    }
-    
-    /// Returns whether this flag is the given short option (ex 'h' for -h).
-    pub fn is_short(&self, other: char) -> bool {
-        use self::OptName::*;
-        match self {
-            &NormalAndShort(_, short) => short == other,
-            _ => false,
+            &OptName::Normal(long) | &OptName::NormalAndShort(long, _) => long,
         }
     }
 }

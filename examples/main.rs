@@ -67,14 +67,14 @@ fn main() {
         // The parse succeeded, by finding one of the 'interrupt flags'
         Ok(Interrupted(flag)) => {
             println!("Interrupt flag!");
-            
-            // Test whether it is the given short argument
-            if flag.is_short('h') {
-                println!("Help requested!");
-            
-            // Test whether it is the given long argument
-            } else if flag.is("version") {
-                println!("Version ZERO POINT ZERO!");
+            match flag {
+                "help" => {
+                    println!("Help requested!");
+                },
+                "version" => {
+                    println!("Version ZERO POINT ZERO!");
+                },
+                other => panic!(format!("Unknown interrupt flag '{}'", other)),
             }
         }
         

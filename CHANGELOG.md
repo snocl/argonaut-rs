@@ -1,4 +1,8 @@
 # Changes
+## 0.6.0
+- The interrupt invariant of ```ParseStatus``` is now a ```&str```.
+- The type ```OptName``` is no longer exported.
+
 ## 0.5.0
 - Named arguments are now accessed with ```named``` on the parsed args.
 - Parsed arguments can no longer be accessed with a short name.
