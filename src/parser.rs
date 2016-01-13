@@ -388,6 +388,18 @@ impl<'a> Parser<'a> {
         let mut multiples = HashMap::new();
         let mut singles = HashMap::new();
         
+        // Populate the optional arguments with empty defaults
+        for (name, option_type) in self.options.iter() {
+            match option_type {
+                &OptType::Single => {
+                    singles.insert(name.clone(), None);
+                },
+                &OptType::ZeroPlus | &OptType::OnePlus => {
+                    multiples.insert(name.clone(), None);
+                },
+            }
+        }
+        
         // Check the general arguments in order
         let mut index = 0;
         while index < args.len() {
