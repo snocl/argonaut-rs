@@ -356,7 +356,7 @@ impl<'a> Parser<'a> {
     }
     
     /// Attempts to parse the given arguments with this parser.
-    pub fn parse(&self, args: &Vec<&'a str>) -> ParseResult<'a> {
+    pub fn parse(&self, args: &[&'a str]) -> ParseResult<'a> {
         use self::ParseStatus::{Parsed, Interrupted};
         use self::GivenArgument::{Value, Flag, ShortFlags};
         use self::ParseError::*;

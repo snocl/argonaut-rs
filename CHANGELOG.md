@@ -1,4 +1,7 @@
 # Changes
+## 0.7.0
+- ```Parser::parse``` now takes an ```&[&str]``` instead.
+
 ## 0.6.0
 - The interrupt invariant of ```ParseStatus``` is now a ```&str```.
 - The type ```OptName``` is no longer exported.
