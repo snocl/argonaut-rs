@@ -1,102 +1,7 @@
-// Created by Jakob Lautrup Nysom @ 05-01-2016
-
 use std::collections::{HashMap, HashSet};
-use std::fmt;
-use common::{FlagName, OptName, convert_flag_name};
-use parsed_args::ParsedArgs;
+use common::{FlagName, OptName};
+use arg::{self, Arg};
 
-/// The different kinds of arguments that can be given to the parser.
-#[derive(Debug, Clone)]
-enum ArgType<'a> {
-    Single(&'a str),
-    ZeroPlus,
-    OnePlus,
-    OptSingle(OptName<'a>),
-    OptZeroPlus(OptName<'a>),
-    OptOnePlus(OptName<'a>),
-    Switch(OptName<'a>),
-    Interrupt(OptName<'a>),
-}
-
-/// An argument description for the parser. Use methods on 'arg' to create them.
-#[derive(Debug)]
-pub struct Arg<'a> {
-    argtype: ArgType<'a>,
-}
-
-impl<'a> Arg<'a> {    
-    /// Creates a positional argument with the given parameter name.
-    pub fn positional(name: &'a str) -> Arg<'a> {
-        Arg { argtype: ArgType::Single(name) }
-    }
-    
-    /// Creates an argument that requires zero or more trailing parameters.
-    pub fn optional_trail() -> Arg<'a> {
-        Arg { argtype: ArgType::ZeroPlus }
-    }
-    
-    /// Creates an argument requires one or more trailing parameters.
-    pub fn required_trail() -> Arg<'a> {
-        Arg { argtype: ArgType::OnePlus }
-    }
-    
-    /// Creates a new optional argument with a short name (ex 'h' for -h).
-    pub fn named_and_short(name: &'a str, short: char) -> OptArg<'a> {
-        OptArg { name: OptName::NormalAndShort(name, short) }
-    }
-    
-    /// Creates a new optional argument with the given flag name.
-    /// (ex "help" for --help).
-    pub fn named(name: &'a str) -> OptArg<'a> {
-        OptArg { name: OptName::Normal(name) }
-    }
-    
-    /// Returns the option name of this argument.
-    pub fn option_name(&self) -> Option<&OptName<'a>> {
-        use self::ArgType::*;
-        match self.argtype {
-              OptSingle(ref optname) 
-            | OptZeroPlus(ref optname) 
-            | OptOnePlus(ref optname) 
-            | Switch(ref optname) 
-            | Interrupt(ref optname) => Some(optname),
-            _ => None,
-        }
-    }
-}
-
-/// The builder for an optional argument.
-#[derive(Debug)]
-pub struct OptArg<'a> {
-    name: OptName<'a>,
-}
-
-impl<'a> OptArg<'a> {
-    /// The argument takes a single parameter.
-    pub fn single(self) -> Arg<'a> {
-        Arg { argtype: ArgType::OptSingle(self.name) }
-    }
-    
-    /// The argument takes one or more parameters.
-    pub fn one_or_more(self) -> Arg<'a> {
-        Arg { argtype: ArgType::OptOnePlus(self.name) }
-    }
-    
-    /// The argument takes zero or more parameters.
-    pub fn zero_or_more(self) -> Arg<'a> {
-        Arg { argtype: ArgType::OptZeroPlus(self.name) }
-    }
-    
-    /// The argument is an interrupt (the parse is interrupted when it is encountered).
-    pub fn interrupt(self) -> Arg<'a> {
-        Arg { argtype: ArgType::Interrupt(self.name) }
-    }
-    
-    /// The argument is a switch (boolean flag).
-    pub fn switch(self) -> Arg<'a> {
-        Arg { argtype: ArgType::Switch(self.name) }
-    }
-}
 
 /// The possible types of an optional argument.
 #[derive(Debug, Clone)]
@@ -107,11 +12,11 @@ enum OptType {
 }
 
 /// Returns the flag names that might denote this option.
-fn optional_flag_names<'a>(name: &OptName<'a>) -> Vec<FlagName<'a>> {
+fn optional_flag_names<'a>(name: OptName<'a>) -> Vec<FlagName<'a>> {
     use common::FlagName::*;
     match name {
-        &OptName::Normal(long) => vec![Long(long)],
-        &OptName::NormalAndShort(long, ch) => vec![Short(ch), Long(long)],
+        OptName::Normal(long) => vec![Long(long)],
+        OptName::NormalAndShort(long, ch) => vec![Short(ch), Long(long)],
     }
 }
 
@@ -122,65 +27,11 @@ enum ReqType {
     OnePlus,
 }
 
-/// The result of a succesful parse. Either all the arguments are parsed and
-/// bound, or an interrupt flag is encountered and the handle of the
-/// corresponding argument is returned.
-#[derive(Debug)]
-pub enum ParseStatus<'a> {
-    Parsed(ParsedArgs<'a>),
-    Interrupted(&'a str),
-}
 
-/// An error found when attempting to parse a set of arguments.
-#[derive(Debug)]
-pub enum ParseError<'a> {
-    /// The given argument is not recognized by the parser.
-    UnknownArgument(String),
-    /// The given short flag takes input and therefore cannot be grouped when
-    /// used (if '-x' takes the argument 'FOO', you cannot call '-vasx').
-    GroupedNonFlag(String),
-    /// The argument is missing a parameter.
-    MissingParameter(String),
-    /// The positional argument with this name is missing.
-    MissingArgument(&'a str),
-    /// The required trail argument is missing.
-    MissingTrail,
-    /// The given positional arguments were not expected by the parser.
-    UnexpectedArguments(Vec<&'a str>)
-}
-
-/// The result of a parse attempt.
-pub type ParseResult<'a> = Result<ParseStatus<'a>, ParseError<'a>>;
-
-/// An argument given by the user.
-#[derive(Debug)]
-enum GivenArgument<'a> {
-    Value(&'a str),
-    Flag(FlagName<'a>),
-    ShortFlags(Vec<FlagName<'a>>),
-}
-
-impl<'a> fmt::Display for GivenArgument<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            GivenArgument::Value(value) => write!(f, "{}", value),
-            GivenArgument::Flag(ref flag) => write!(f, "{}", flag),
-            GivenArgument::ShortFlags(ref flags) => {
-                try!(write!(f, "-"));
-                for flag in flags.iter() {
-                    if let &FlagName::Short(ch) = flag {
-                        try!(write!(f, "{}", ch));
-                    }
-                }
-                Ok(())
-            }
-        }
-    }
-}
 
 /// Creates an argument name (fat pointer) to the given argument if it is 
 /// valid as such.
-fn create_argument_name<'a>(arg: &'a str) -> GivenArgument<'a> {
+fn argument_type<'a>(arg: &'a str) -> GivenArgument<'a> {
     use self::GivenArgument::*;
     use common::FlagName::*;
     if arg.starts_with("--") {
@@ -198,65 +49,32 @@ fn create_argument_name<'a>(arg: &'a str) -> GivenArgument<'a> {
     }
 }
 
-/// Attempts to find enough parameters for the given option type.
-fn find_parameters<'a, 'b>(name: &FlagName<'b>, opt_type: &OptType,
-        args: &[GivenArgument<'a>]) 
-        -> Result<Vec<&'a str>, ParseError<'b>> {
-    use self::ParseError::*;
-    use self::GivenArgument::*;
-    //println!("Finding parameters of {} ({:?}) in {:?}", name, opt_type, args);
-    let mut params = Vec::new();
-    match opt_type {
-        &OptType::Single => {
-            if args.len() < 1 {
-                return Err(MissingParameter(name.to_string()));
-            }
-            if let Value(val) = args[0] {
-                params.push(val);
-            } else {
-                return Err(MissingParameter(name.to_string()));
-            }
-        },
-        &OptType::ZeroPlus => {
-            params.extend(args.iter().take_while(|arg| {
-                if let &&Value(_) = arg {
-                    true
-                } else {
-                    false
-                }
-            }).map(|arg| {
-                if let &Value(val) = arg {
-                    val
-                } else {
-                    panic!("take_while invariant broken!");
-                }
-            }));
-        },
-        &OptType::OnePlus => {
-            if args.len() < 1 {
-                return Err(MissingParameter(name.to_string()));
-            }
-            if let Value(val) = args[0] {
-                params.push(val);
-            } else {
-                return Err(MissingParameter(name.to_string()));
-            }
-            params.extend(args.iter().skip(1).take_while(|arg| {
-                if let &&Value(_) = arg {
-                    true
-                } else {
-                    false
-                }
-            }).map(|arg| {
-                if let &Value(val) = arg {
-                    val
-                } else {
-                    panic!("take_while invariant broken!");
-                }
-            }));
-        },
-    }
-    Ok(params)
+/// An error found when attempting to parse a set of arguments.
+#[derive(Debug)]
+pub enum ParseError<'a> {
+    /// This optional argument is not recognized by the parser.
+    UnknownOptionalArgument { arg: &'a str },
+    /// The given short flag takes input and therefore cannot be grouped when
+    /// used (if '-x' takes the argument 'FOO', you cannot call '-vasx').
+    GroupedNonSwitch { arg: &'a str, invalid: String },
+    /// This argument is missing a parameter.
+    MissingParameter { arg: &'a str },
+    /// This positional argument wasn't given.
+    MissingPositionalArgument { arg: &'a str },
+    /// This optional argument was given twice.
+    DuplicatePositionalArgument { arg: &'a str },
+    /// The required trail argument is missing.
+    MissingTrail,
+    /// The given positional argument was not expected by the parser.
+    UnexpectedArgument { arg: &'a str },
+}
+
+/// An argument given by the user.
+#[derive(Debug)]
+enum GivenArgument<'a> {
+    Value(&'a str),
+    Flag(FlagName<'a>),
+    ShortFlags(Vec<FlagName<'a>>),
 }
 
 /// An argument parser.
@@ -269,10 +87,287 @@ pub struct Parser<'a> {
     interrupts: HashSet<OptName<'a>>,
     used_flags: HashSet<FlagName<'a>>,
     aliases: HashMap<FlagName<'a>, OptName<'a>>,
+    passalongs: HashSet<OptName<'a>>,
+}
+
+/// One or more arguments structured by the parser.
+#[derive(Debug)]
+pub enum StructuredArgument<'a> {
+    /// A positional argument.
+    Positional { name: &'a str, value: &'a str },
+    /// The trail of arguments left after all the positional arguments have been
+    /// found.
+    Trail { values: Vec<&'a str> },
+    /// An optional argument taking a single value.
+    Single { name: &'a str, parameter: &'a str },
+    /// An optional argument taking multiple values.
+    Multiple { name: &'a str, parameters: &'a [&'a str] },
+    /// An optional argument that is present.
+    Switch { name: &'a str },
+    /// An optional argument which interrupt the parse when encountered.
+    Interrupt { name: &'a str },
+    /// An optional argument which collects all following arguments without
+    /// parsing them (for parsing arguments along to a subcommand or alike).
+    PassAlong { name: &'a str, args: &'a [&'a str] },
+}
+
+/// An iterator over structured arguments during a parse.
+#[derive(Debug)]
+pub struct Parse<'a> {
+    index: usize,
+    position: usize,
+    parser: &'a Parser<'a>,
+    args: &'a [&'a str],
+    found_flags: HashSet<OptName<'a>>,
+    leftover_short_flags: Vec<FlagName<'a>>,
+    finished: bool,
+    trail: Vec<&'a str>,
+    passalong: Option<(&'a str, usize)>,
+}
+
+impl<'a> Parse<'a> {
+    /// Returns the remaining unparsed arguments for this parse run.
+    pub fn remaining_args(&self) -> &'a [&'a str] {
+        &self.args[self.index..]
+    }
+    
+    // Parses the given flag
+    fn parse_flag(&mut self, flag: FlagName<'a>, arg: &'a str) 
+            -> Result<StructuredArgument<'a>, ParseError<'a>> {
+        use self::ParseError::*;
+        use self::StructuredArgument::*;
+                
+        let opt_name = match self.parser.aliases.get(&flag) {
+            Some(name) => *name,
+            None => {
+                self.finished = true;
+                return Err(UnknownOptionalArgument { arg: arg });
+            }
+        };
+        
+        if self.found_flags.contains(&opt_name) {
+            return Err(DuplicatePositionalArgument { 
+                arg: arg }
+            );
+        }
+        
+        if self.parser.switches.contains(&opt_name) {
+            self.found_flags.insert(opt_name.clone());
+            return Ok(Switch { name: opt_name.name() });
+        
+        } else if self.parser.interrupts.contains(&opt_name) {
+            self.finished = true;
+            return Ok(Interrupt { name: opt_name.name() });
+        
+        } else if self.parser.passalongs.contains(&opt_name) {
+            if let Some(res) = self.check_trail() {
+                self.passalong = Some((opt_name.name(), self.index));
+                return res;
+            } else {
+                return Ok(PassAlong { 
+                    name: opt_name.name(), args: &self.args[self.index..]
+                });
+            }
+        }
+        // The argument must be an optional one
+        self.found_flags.insert(opt_name);
+        let opt_type = self.parser.options.get(&opt_name)
+            .expect("Broken invariant: a flag was in aliases, but was not found\
+            in the arg type structures");
+        self.find_parameters(arg, opt_type, opt_name)
+    }
+    
+    fn validate_grouped_short(&mut self, flag: FlagName<'a>, arg: &'a str)
+            -> Result<(), ParseError<'a>> {
+        use self::ParseError::*;
+        let opt_name = match self.parser.aliases.get(&flag) {
+            Some(name) => name,
+            None => {
+                self.finished = true;
+                return Err(UnknownOptionalArgument { arg: arg });
+            }
+        };
+        if ! self.parser.switches.contains(&opt_name) {
+            return Err(GroupedNonSwitch {
+                arg: arg, invalid: flag.to_string()
+            });
+        }
+        Ok(())
+    }
+    
+    fn check_trail(&mut self) 
+            -> Option<Result<StructuredArgument<'a>, ParseError<'a>>> {
+        use self::StructuredArgument::*;
+        use self::ParseError::*;
+        // A positional argument wasn't given
+        if self.position < self.parser.positional.len() {
+            let arg = self.parser.positional[self.position];
+            return Some(Err(MissingPositionalArgument { arg: arg }));
+        }
+        match self.parser.trail {
+            // Validate that at least one trail argument is present
+            Some(ReqType::OnePlus) => {
+                if self.trail.len() < 1 {
+                    return Some(Err(MissingTrail));
+                }
+            },
+            Some(ReqType::ZeroPlus) => {},
+            // No trail expected and none found: just return
+            None => {
+                return None;
+            }
+        }
+        // Return the trail
+        return Some(Ok(Trail { values: self.trail.clone() }));
+    }
+    
+    /// Attempts to find enough parameters for the given option type.
+    fn find_parameters<'b>(&mut self, arg: &'a str,
+            opt_type: &OptType, opt_name: OptName<'a>) 
+            -> Result<StructuredArgument<'a>, ParseError<'a>> {
+        use self::ParseError::*;
+        use self::StructuredArgument::*;
+        use self::GivenArgument::Value;
+        let args = &self.args[self.index..];
+        //println!("Finding parameters of {} ({:?}) in {:?}", name, opt_type, args);
+        match *opt_type {
+            OptType::Single => {
+                self.index += 1;
+                if args.len() < 1 {
+                    return Err(MissingParameter { arg: arg });
+                }
+                if let Value(value) = argument_type(args[0]) {
+                    return Ok(Single {
+                        name: opt_name.name(), 
+                        parameter: value
+                    });
+                } else {
+                    return Err(MissingParameter { arg: arg });
+                }
+            },
+            OptType::ZeroPlus => {
+                let count = args.iter().take_while(|arg| {
+                    if let Value(_) = argument_type(arg) {
+                        true
+                    } else {
+                        false
+                    }
+                }).count();
+                let params = &self.args[self.index .. self.index+count];
+                self.index += count;
+                return Ok(Multiple { 
+                    name: opt_name.name(), 
+                    parameters: params,
+                });
+            },
+            OptType::OnePlus => {
+                if args.len() < 1 {
+                    return Err(MissingParameter { arg: arg });
+                }
+                if let Value(_) = argument_type(args[0]) {
+                } else {
+                    return Err(MissingParameter { arg: arg });
+                }
+                let count = 1 + args.iter().skip(1).take_while(|arg| {
+                    if let Value(_) = argument_type(arg) {
+                        true
+                    } else {
+                        false
+                    }
+                }).count();
+                let params = &self.args[self.index .. self.index+count];
+                self.index += count;
+                return Ok(Multiple {
+                    name: opt_name.name(),
+                    parameters: params,
+                });
+            },
+        }
+    }
+}
+
+impl<'a> Iterator for Parse<'a> {
+    type Item = Result<StructuredArgument<'a>, ParseError<'a>>;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        use self::GivenArgument::*;
+        use self::StructuredArgument::*;
+        use self::ParseError::*;
+        
+        // Stop if the parse is finished
+        if self.finished {
+            return None;
+        }
+        
+        // Check for leftover short flag from grouped short switches eg. '-abc'
+        if self.leftover_short_flags.len() > 0 {
+            let flag = self.leftover_short_flags.remove(0);
+            let arg = self.args[self.index - 1];
+            match self.validate_grouped_short(flag, arg) {
+                Err(err) => return Some(Err(err)),
+                _ => {}
+            }
+            return Some(self.parse_flag(flag, arg))
+        }
+        
+        // Check for a leftover passalong argument
+        if let Some((name, index)) = self.passalong {
+            self.finished = true;
+            return Some(Ok(PassAlong { 
+                name: name, 
+                args: &self.args[index..]
+            }));
+        }
+        
+        while self.index < self.args.len() {
+            let arg = self.args[self.index];
+            self.index += 1;
+            match argument_type(arg) {
+                Value(value) => {
+                    // Trail?
+                    if self.position >= self.parser.positional.len() {
+                        if let Some(_) = self.parser.trail {
+                            self.trail.push(value);
+                        } else {
+                            self.finished = true;
+                            return Some(Err(UnexpectedArgument { arg: value }));
+                        }
+                    // Positional
+                    } else {
+                        let position = self.parser.positional[self.position];
+                        self.position += 1;
+                        return Some(Ok(Positional {
+                            name: position, value: value
+                        }));
+                    }
+                },
+                Flag(flag) => {
+                    return Some(self.parse_flag(flag, arg));
+                },
+                ShortFlags(flags) => {
+                    self.leftover_short_flags = flags;
+                    let flag = self.leftover_short_flags.remove(0);
+                    match self.validate_grouped_short(flag, arg) {
+                        Err(err) => return Some(Err(err)),
+                        _ => {}
+                    }
+                    return Some(self.parse_flag(flag, arg));
+                },
+            }
+        }
+        
+        if ! self.finished {
+            self.finished = true;
+            self.check_trail()
+        } else {
+            self.finished = true;
+            None
+        }
+    }
 }
 
 impl<'a> Parser<'a> {
-    /// Creates a new parser with the given title.
+    /// Creates a new parser.
     pub fn new() -> Self {
         Parser {
             positional: Vec::new(),
@@ -282,15 +377,18 @@ impl<'a> Parser<'a> {
             interrupts: HashSet::new(),
             used_flags: HashSet::new(),
             aliases: HashMap::new(),
+            passalongs: HashSet::new(),
         }
     }
     
-    /// Attempts to add an argument to this parser.
+    /// Adds an argument to the parser.
+    /// Errors if an optional argument with the same name has already been
+    /// added, or if a trail is added twice.
     pub fn add(&mut self, arg: &Arg<'a>) -> Result<(), String> {
-        use self::ArgType::*;
+        use arg::ArgType::*;
       
         if let Some(optname) = arg.option_name() {
-            let names = optional_flag_names(&optname);
+            let names = optional_flag_names(optname);
             
             for name in names.iter() {
                 if self.used_flags.contains(name) {
@@ -306,7 +404,7 @@ impl<'a> Parser<'a> {
             }
         }
         
-        match arg.argtype {
+        match *arg::internal_get_raw(&arg) {
             Single(name) => {
                 if self.positional.contains(&name) {
                     return Err(format!(
@@ -334,16 +432,19 @@ impl<'a> Parser<'a> {
                 self.trail = Some(ReqType::OnePlus)
             
             },
-            Switch(ref optname) => {
-                self.switches.insert(optname.clone());
+            Switch(optname) => {
+                self.switches.insert(optname);
             },
-            Interrupt(ref optname) => {
-                self.interrupts.insert(optname.clone());
+            Interrupt(optname) => {
+                self.interrupts.insert(optname);
             },
-              OptSingle(ref optname) 
-            | OptZeroPlus(ref optname) 
-            | OptOnePlus(ref optname) => {
-                let opt_type = match arg.argtype {
+            PassAlong(optname) => {
+                self.passalongs.insert(optname);
+            },
+              OptSingle(optname) 
+            | OptZeroPlus(optname) 
+            | OptOnePlus(optname) => {
+                let opt_type = match *arg::internal_get_raw(&arg) {
                     OptSingle(_) => OptType::Single,
                     OptZeroPlus(_) => OptType::ZeroPlus,
                     OptOnePlus(_) => OptType::OnePlus,
@@ -355,148 +456,18 @@ impl<'a> Parser<'a> {
         Ok(())
     }
     
-    /// Attempts to parse the given arguments with this parser.
-    pub fn parse(&self, args: &[&'a str]) -> ParseResult<'a> {
-        use self::ParseStatus::{Parsed, Interrupted};
-        use self::GivenArgument::{Value, Flag, ShortFlags};
-        use self::ParseError::*;
-        
-        let arguments: Vec<_> = args.iter().map(
-            |arg| create_argument_name(arg)).collect();
-        
-        // Check for interrupts first
-        for arg in arguments.iter() {
-            //println!("Checking arg: {}...", arg);
-            if let &Flag(ref name) = arg {
-                let optname = convert_flag_name(&self.aliases, name);
-                //println!("Optname: {:?}", optname);
-                if self.interrupts.contains(&optname) {
-                    return Ok(Interrupted(optname.long()));
-                }
-                
-                // SAFE_FLAGS: Validate that all flags are valid
-                if ! self.used_flags.contains(name) {
-                    return Err(UnknownArgument(name.to_string()));
-                }
-            }
+    /// Starts parsing the given arguments with this parser.
+    pub fn parse(&'a self, args: &'a [&'a str]) -> Parse<'a> {
+        Parse {
+            index: 0,
+            position: 0,
+            parser: self,
+            args: args,
+            found_flags: HashSet::new(),
+            leftover_short_flags: Vec::new(),
+            finished: false,
+            trail: Vec::new(),
+            passalong: None,
         }
-            
-        let mut switches: HashMap<OptName<'a>, bool> = self.switches.iter()
-            .map(|f| (f.clone(), false)).collect();
-        
-        let mut positional = Vec::new();
-        let mut multiples = HashMap::new();
-        let mut singles = HashMap::new();
-        
-        // Populate the optional arguments with empty defaults
-        for (name, option_type) in self.options.iter() {
-            match option_type {
-                &OptType::Single => {
-                    singles.insert(name.clone(), None);
-                },
-                &OptType::ZeroPlus | &OptType::OnePlus => {
-                    multiples.insert(name.clone(), None);
-                },
-            }
-        }
-        
-        // Check the general arguments in order
-        let mut index = 0;
-        while index < args.len() {
-            match arguments[index] {
-                Value(val) => {
-                    positional.push(val);
-                    index += 1;
-                },
-                
-                Flag(ref flag_name) => {
-                    let opt_name = convert_flag_name(&self.aliases, flag_name);
-                    if self.switches.contains(&opt_name) {
-                        switches.insert(opt_name, true);
-                        index += 1;
-                    } else {
-                        // Due to the SAFE_FLAGS invariant, this is safe
-                        let opt_type = self.options.get(&opt_name)
-                            .expect("invariant: SAFE_FLAGS");
-                        
-                        index += 1;
-                        let params = try!(find_parameters(
-                            flag_name, opt_type, &arguments[index..]
-                        ));
-                        //println!("Params for {}: {:?}", &flag_name, &params);
-                        match opt_type {
-                            &OptType::Single => {
-                                index += 1;
-                                singles.insert(opt_name, Some(params[0]));
-                            },
-                            &OptType::ZeroPlus => {
-                                index += params.len();
-                                multiples.insert(opt_name, Some(params));
-                            },
-                            &OptType::OnePlus => {
-                                index += params.len();
-                                multiples.insert(opt_name, Some(params));
-                            },
-                        }
-                    }
-                },
-                ShortFlags(ref flag_names) => {
-                    for flag_name in flag_names.iter() {
-                        let opt_name = convert_flag_name(&self.aliases, flag_name);
-                        if self.switches.contains(&opt_name) {
-                            switches.insert(opt_name, true);
-                        } else {
-                            return Err(GroupedNonFlag(flag_name.to_string()));
-                        }
-                    }
-                    index += 1;
-                },
-            }
-        }
-        
-        // Ensure that enough positional arguments are given
-        
-        
-        // Fewer than the positional arguments
-        let positions = self.positional.len();
-        if positional.len() < positions {
-            return Err(MissingArgument(self.positional[positional.len()]));
-            
-        // Only the positional arguments
-        } else if positional.len() == positions {
-            if let Some(ReqType::OnePlus) = self.trail {
-                return Err(MissingTrail);
-            }
-        
-        // More than the positional arguments
-        } else {
-            if let None = self.trail {
-                let mut unexpected = Vec::new();
-                unexpected.extend(positional[positions..].iter());
-                return Err(UnexpectedArguments(unexpected))
-            }
-        }
-        
-        let mut positional_args: HashMap<&str, &str> = HashMap::new();
-        for (num, posname) in self.positional.iter().enumerate() {
-            positional_args.insert(posname, positional[num]);
-        }
-        
-        let trail = if self.trail.is_some() {
-            Some(positional[positions..].iter().map(|s| *s).collect::<Vec<_>>())
-        } else {
-            None
-        };
-        
-        let parsed = ParsedArgs::new(
-            positional_args, 
-            trail,
-            singles, 
-            multiples, 
-            switches, 
-            self.aliases.clone()
-        );
-        
-        Ok(Parsed(parsed))
     }
 }

@@ -1,4 +1,7 @@
 # Changes
+## 0.8.0
+- The parse approach was changed to instead iterate over arguments, to give the user more control over the parse flow. This makes it a lot easier to transition to other parsers for subcommands.
+
 ## 0.7.0
 - ```Parser::parse``` now takes an ```&[&str]``` instead.
 

@@ -13,17 +13,18 @@ The actual argument parsing returns errors that should be pretty simple to conve
 Adding arguments to the parser and accessing arguments on the parsed arguments will only return an error string, as they may only have *logical* errors, such as adding arguments that would overwrite each other, or trying to access a parsed argument using an invalid identifier.
 
 # Example
-This can be found in *examples/main.rs* as well, and be run with ```cargo run --example main -- foo bar -x baz --verbose -e extra1 extra2 --add a b c```.
+This can be found in *examples/main.rs* as well, and be run with 
+```cargo run --example main -- foo bar -x baz --verbose -e extra1 extra2 --add  -- lol --help```.
 You can also try running it without the arguments, but these arguments will make the parse **succeed**.
 
 ```rust
 extern crate argonaut;
 
 use argonaut::{Parser, Arg};
-use argonaut::ParseStatus::{Parsed, Interrupted};
 use std::env;
 
 fn main() {
+    use argonaut::StructuredArgument::*;
     println!("Argonaut!");
     
     // Prepare the argument slice (skip the program path)
@@ -46,6 +47,7 @@ fn main() {
     let exclude = Arg::named_and_short("exclude", 'x').single();
     let extra   = Arg::named_and_short("extra", 'e').zero_or_more();
     let add     = Arg::named_and_short("add", 'a').one_or_more();
+    let passed  = Arg::named("").passalong();
     
     // Add them, and assert that none of the named ones overlap
     parser.add(&foo).unwrap();
@@ -56,51 +58,79 @@ fn main() {
     parser.add(&exclude).unwrap();
     parser.add(&extra).unwrap();
     parser.add(&add).unwrap();
+    parser.add(&passed).unwrap();
+        
+    let mut foo = "";
+    let mut bar = Vec::new();
+    let mut extra = None;
+    let mut add = None;
+    let mut verbose = false;
+    let mut exclude = None;
+    let mut passed = None;
     
-    // Check the result
-    match parser.parse(&args) {
-        // The parse succeeded and all arguments were assigned
-        Ok(Parsed(parsed)) => {
-            println!("Parsed succesfully!");
-            
-            // Get positional argument 'foo'
-            println!("Foo: {}", parsed.positional("foo").unwrap());
-            
-            // Get the trail (remaining arguments after the declared ones)
-            println!("Bar: {:?}", parsed.trail().unwrap());
-            
-            // Check a 'switch' by its long name
-            println!("Verbose: {}", parsed.named("verbose").switch().unwrap());
-            
-            // Check flag taking a single parameter by its short name
-            println!("Exclude: {:?}", parsed.named("exclude").single().unwrap());
-            
-            // Check a flag taking multiple parameters by its short name
-            println!("Extra: {:?}", parsed.named("extra").multiple().unwrap());
-            
-            // Check a flag taking multiple parameters by its long name
-            println!("Add: {:?}", parsed.named("add").multiple().unwrap());
-        },
-        
-        // The parse succeeded, by finding one of the 'interrupt flags'
-        Ok(Interrupted(flag)) => {
-            println!("Interrupt flag!");
-            match flag {
-                "help" => {
-                    println!("Help requested!");
-                },
-                "version" => {
-                    println!("Version ZERO POINT ZERO!");
-                },
-                other => panic!(format!("Unknown interrupt flag '{}'", other)),
-            }
+    let usage = "Usage: cargo run --example main -- [--help] [options]";
+    let help = "\
+Required arguments:    
+foo             a single argument
+bar [bar, ..]   one or more arguments
+
+Interrupts:
+--help | -h     show this help message
+--version       show the version of this library
+
+Optional arguments:
+--verbose | -v              a switch (present or non-present)
+--extra | -e [arg, ..]      zero or more arguments
+--add | -a arg [arg, ..]    one or more arguments
+--                          collect the remaining arguments\
+";
+    
+    for item in parser.parse(&args) {
+        match item {
+            Err(err) => {
+                println!("Parse error: {:?}", err);
+                println!("{}", usage);
+                return;
+            },
+            Ok(Positional { name: "foo", value }) => {
+                foo = value;
+            },
+            Ok(Trail { values }) => {
+                bar = values;
+            },
+            Ok(Interrupt { name: "help" }) => {
+                println!("{}\n{}", usage, help);
+            },
+            Ok(Interrupt { name: "version" }) => {
+                println!("{}", env!("CARGO_PKG_VERSION"));
+            },
+            Ok(Switch { name: "verbose" }) => {
+                verbose = true;
+            },
+            Ok(Single { name: "exclude", parameter }) => {
+                exclude = Some(parameter);
+            },
+            Ok(Multiple { name: "add", parameters }) => {
+                add = Some(parameters);
+            },
+            Ok(Multiple { name: "extra", parameters }) => {
+                extra = Some(parameters);
+            },
+            Ok(PassAlong { name: "", args }) => {
+                passed = Some(args);
+            },
+            _ => unreachable!(),
         }
-        
-        // The parse failed, due to the given error
-        Err(error) => {
-            println!("Parse error: {:?}", error);
-        },
-    } 
+    }
+    // Use the parsed values
+    println!("Parsed succesfully!");
+    println!("Foo:          {}", foo);
+    println!("Bar:          {:?}", bar);
+    println!("Verbose:      {}", verbose);
+    println!("Exclude:      {:?}", exclude);
+    println!("Extra:        {:?}", extra);
+    println!("Add:          {:?}", add);
+    println!("Passed args:  {:?}", passed);
 }
 ```
 
