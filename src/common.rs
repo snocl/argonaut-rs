@@ -40,15 +40,3 @@ impl<'a> OptName<'a> {
         }
     }
 }
-
-impl<'a> fmt::Display for OptName<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            OptName::Normal(name) => write!(f, "--{}", name),
-            OptName::NormalAndShort(name, short) => {
-                try!(write!(f, "--{}", name));
-                write!(f, " | -{}", short)
-            }
-        }
-    }
-}

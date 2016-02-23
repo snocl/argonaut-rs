@@ -64,7 +64,7 @@ pub enum ParseError<'a> {
     /// This optional argument was given twice.
     DuplicatePositionalArgument { arg: &'a str },
     /// The required trail argument is missing.
-    MissingTrail,
+    MissingTrail { arg: &'a str },
     /// The given positional argument was not expected by the parser.
     UnexpectedArgument { arg: &'a str },
 }
@@ -81,13 +81,14 @@ enum GivenArgument<'a> {
 #[derive(Debug)]
 pub struct Parser<'a> {
     positional: Vec<&'a str>,
-    trail: Option<ReqType>,
+    trail: Option<(&'a str, ReqType)>,
     options: HashMap<OptName<'a>, OptType>,
     switches: HashSet<OptName<'a>>,
     interrupts: HashSet<OptName<'a>>,
     used_flags: HashSet<FlagName<'a>>,
     aliases: HashMap<FlagName<'a>, OptName<'a>>,
     passalongs: HashSet<OptName<'a>>,
+    definitions: Vec<Arg<'a>>,
 }
 
 /// One or more arguments structured by the parser.
@@ -206,12 +207,12 @@ impl<'a> Parse<'a> {
         }
         match self.parser.trail {
             // Validate that at least one trail argument is present
-            Some(ReqType::OnePlus) => {
+            Some((arg, ReqType::OnePlus)) => {
                 if self.trail.len() < 1 {
-                    return Some(Err(MissingTrail));
+                    return Some(Err(MissingTrail { arg: arg }));
                 }
             },
-            Some(ReqType::ZeroPlus) => {},
+            Some((_, ReqType::ZeroPlus)) => {},
             // No trail expected and none found: just return
             None => {
                 return None;
@@ -378,13 +379,24 @@ impl<'a> Parser<'a> {
             used_flags: HashSet::new(),
             aliases: HashMap::new(),
             passalongs: HashSet::new(),
+            definitions: Vec::new(),
         }
     }
     
-    /// Adds an argument to the parser.
+    /// Adds a list of argument definitions to the parser.
     /// Errors if an optional argument with the same name has already been
     /// added, or if a trail is added twice.
-    pub fn add(&mut self, arg: &Arg<'a>) -> Result<(), String> {
+    pub fn define(&mut self, args: &[Arg<'a>]) -> Result<(), String> {
+        for arg in args {
+            try!(self.define_single(*arg));
+        }
+        Ok(())
+    }
+    
+    /// Adds an argument definition to the parser.
+    /// Errors if an optional argument with the same name has already been
+    /// added, or if a trail is added twice.
+    pub fn define_single(&mut self, arg: Arg<'a>) -> Result<(), String> {
         use arg::ArgType::*;
       
         if let Some(optname) = arg.option_name() {
@@ -404,7 +416,7 @@ impl<'a> Parser<'a> {
             }
         }
         
-        match *arg::internal_get_raw(&arg) {
+        match arg::internal_get_raw(arg) {
             Single(name) => {
                 if self.positional.contains(&name) {
                     return Err(format!(
@@ -415,22 +427,29 @@ impl<'a> Parser<'a> {
                     self.positional.push(name);
                 }
             },
-            ZeroPlus => {
-                if self.trail.is_some() {
-                    return Err(format!(
-                        "A trailing argument has already been set",
-                    ));
+            ZeroPlus(name) => {
+                match self.trail {
+                    Some(_) => {
+                        return Err(format!(
+                            "A trailing argument has already been set"
+                        ));
+                    },
+                    None => {
+                        self.trail = Some((name, ReqType::ZeroPlus));
+                    }
                 }
-                self.trail = Some(ReqType::ZeroPlus)
             },
-            OnePlus => {
-                if self.trail.is_some() {
-                    return Err(format!(
-                        "A trailing argument has already been set",
-                    ));
+            OnePlus(name) => {
+                match self.trail {
+                    Some(_) => {
+                        return Err(format!(
+                            "A trailing argument has already been set"
+                        ));
+                    },
+                    None => {
+                        self.trail = Some((name, ReqType::OnePlus));
+                    }
                 }
-                self.trail = Some(ReqType::OnePlus)
-            
             },
             Switch(optname) => {
                 self.switches.insert(optname);
@@ -441,18 +460,17 @@ impl<'a> Parser<'a> {
             PassAlong(optname) => {
                 self.passalongs.insert(optname);
             },
-              OptSingle(optname) 
-            | OptZeroPlus(optname) 
-            | OptOnePlus(optname) => {
-                let opt_type = match *arg::internal_get_raw(&arg) {
-                    OptSingle(_) => OptType::Single,
-                    OptZeroPlus(_) => OptType::ZeroPlus,
-                    OptOnePlus(_) => OptType::OnePlus,
-                    _ => unreachable!(),
-                };
-                self.options.insert(optname.clone(), opt_type);
+            OptSingle(optname) => {
+                self.options.insert(optname, OptType::Single);
+            },
+            OptZeroPlus(optname) => {
+                self.options.insert(optname, OptType::ZeroPlus);
+            },
+            OptOnePlus(optname) => {
+                self.options.insert(optname, OptType::OnePlus);
             },
         }
+        self.definitions.push(arg);
         Ok(())
     }
     
@@ -470,4 +488,9 @@ impl<'a> Parser<'a> {
             passalong: None,
         }
     }
+}
+
+pub fn internal_get_definitions<'a, 'b>(parser: &'b Parser<'a>)
+        -> &'b Vec<Arg<'a>> {
+    &parser.definitions
 }
