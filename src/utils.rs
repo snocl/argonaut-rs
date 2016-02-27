@@ -1,6 +1,7 @@
+use std::borrow::Cow;
+
 use arg;
 use parser::{Parser, internal_get_definitions};
-
 
 fn align_lines(lines: &mut Vec<Vec<String>>, padding: Option<char>) {
     let mut widths = Vec::new();
@@ -16,11 +17,7 @@ fn align_lines(lines: &mut Vec<Vec<String>>, padding: Option<char>) {
         }
     }
 
-    let padding = if let Some(pad) = padding {
-        pad
-    } else {
-        ' '
-    };
+    let padding = padding.unwrap_or(' ');
     // Pad the lines
     for line in lines.iter_mut() {
         if line.is_empty() {
@@ -37,7 +34,7 @@ fn align_lines(lines: &mut Vec<Vec<String>>, padding: Option<char>) {
 
 /// Generates a help message for the tool based on the given list of arguments,
 /// their parameter name (if relevant), and their help string.
-pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
+pub fn generate_help(parser: &Parser) -> String {
     use arg::ArgType::*;
     use common::OptName::*;
 
@@ -84,7 +81,7 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
                 }
                 _ => unreachable!(),
             }
-            help_texts.push(args[i].help());
+            help_texts.push(args[i].help().unwrap_or(""));
         }
         align_lines(&mut lines, None);
         for (i, line) in lines.iter().enumerate() {
@@ -116,7 +113,7 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
                 }
                 _ => unreachable!(),
             };
-            help_texts.push(args[i].help());
+            help_texts.push(args[i].help().unwrap_or(""));
         }
 
         align_lines(&mut lines, None);
@@ -150,10 +147,10 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
         let mut lines = Vec::new();
         let mut help_texts = Vec::new();
         for (i, argtype) in optional {
-            let mut param = args[i].param().to_owned();
-            if param.is_empty() {
-                param = args[i].name().to_uppercase();
-            }
+            let param = match args[i].param() {
+                Some(param) => Cow::Borrowed(param),
+                None => Cow::Owned(args[i].name().to_uppercase()),
+            };
             match argtype {
                 OptSingle(Normal(long)) => {
                     lines.push(vec![format!("--{}{}", long, param)]);
@@ -162,7 +159,7 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
                     lines.push(vec![format!("--{}", long),
                                     "|".to_owned(),
                                     format!("-{}", short),
-                                    param]);
+                                    param.into_owned()]);
                 }
                 OptZeroPlus(Normal(long)) => {
                     lines.push(vec![format!("--{}[{}, ..]", long, param)]);
@@ -192,7 +189,7 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
                 }
                 _ => unreachable!(),
             };
-            help_texts.push(args[i].help());
+            help_texts.push(args[i].help().unwrap_or(""));
         }
 
         align_lines(&mut lines, None);
@@ -226,10 +223,10 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
         let mut lines = Vec::new();
         let mut help_texts = Vec::new();
         for (i, argtype) in passing {
-            let mut param = args[i].param().to_owned();
-            if param.is_empty() {
-                param = args[i].name().to_uppercase();
-            }
+            let param = match args[i].param() {
+                Some(param) => Cow::Borrowed(param),
+                None => Cow::Owned(args[i].name().to_uppercase()),
+            };
             match argtype {
                 PassAlong(Normal(long)) => {
                     lines.push(vec![format!("--{}{}...", long, param)]);
@@ -242,7 +239,7 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
                 }
                 _ => unreachable!(),
             }
-            help_texts.push(args[i].help());
+            help_texts.push(args[i].help().unwrap_or(""));
         }
 
         align_lines(&mut lines, None);
@@ -265,7 +262,7 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
             help_message.push_str("\n");
         }
     }
-    if help_message.ends_with("\n") {
+    if help_message.ends_with('\n') {
         help_message.pop();
     }
     help_message

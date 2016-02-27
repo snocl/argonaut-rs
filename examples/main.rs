@@ -19,32 +19,32 @@ fn main() {
     let mut parser = Parser::new();
 
     // Create the arguments
-    let a_foo = Arg::positional("foo").add_help("A single argument.");
-    let a_foobar = Arg::required_trail("foobar").add_help("One or more trailing arguments.");
+    let a_foo = Arg::positional("foo").set_help("A single argument.");
+    let a_foobar = Arg::required_trail("foobar").set_help("One or more trailing arguments.");
     let a_help = Arg::named_and_short("help", 'h')
                      .interrupt()
-                     .add_help("Prints a help message for this tool and exits.");
+                     .set_help("Prints a help message for this tool and exits.");
     let a_version = Arg::named("version")
                         .interrupt()
-                        .add_help("Prints the version of this tool and exits.");
+                        .set_help("Prints the version of this tool and exits.");
     let a_verbose = Arg::named_and_short("verbose", 'v')
                         .switch()
-                        .add_help("A switch (present or non-present)");
+                        .set_help("A switch (present or non-present)");
     let a_exclude = Arg::named_and_short("exclude", 'x')
                         .single()
-                        .add_param("item")
-                        .add_help("A single argument.");
+                        .set_param("item")
+                        .set_help("A single argument.");
     let a_extra = Arg::named_and_short("extra", 'e')
                       .zero_or_more()
-                      .add_help("Zero or more arguments.");
+                      .set_help("Zero or more arguments.");
     let a_add = Arg::named_and_short("add", 'a')
                     .one_or_more()
-                    .add_param("number")
-                    .add_help("One or more arguments.");
+                    .set_param("number")
+                    .set_help("One or more arguments.");
     let a_passed = Arg::named("")
                        .passalong()
-                       .add_param("args")
-                       .add_help("Collect the remaining arguments after this one.");
+                       .set_param("args")
+                       .set_help("Collect the remaining arguments after this one.");
 
     // Add the arguments, and assert that none of the named ones overlap
     // Add one

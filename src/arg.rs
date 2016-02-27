@@ -1,4 +1,3 @@
-//! Parser arguments.
 use common::OptName;
 
 /// The different kinds of arguments that can be given to the parser.
@@ -18,9 +17,9 @@ pub enum ArgType<'a> {
 /// An argument description for the parser.
 #[derive(Debug, Clone, Copy)]
 pub struct Arg<'a> {
-    argtype: ArgType<'a>,
     param: Option<&'a str>,
     help: Option<&'a str>,
+    argtype: ArgType<'a>,
 }
 
 impl<'a> Arg<'a> {
@@ -47,20 +46,22 @@ impl<'a> Arg<'a> {
         Arg::new(ArgType::OnePlus(name))
     }
 
-    /// Creates a new optional argument with a short name (ex 'h' for -h).
+    /// Creates a new optional argument with a short name (e.g. `h` for `-h`).
     pub fn named_and_short(name: &'a str, short: char) -> OptArg<'a> {
         OptArg { name: OptName::NormalAndShort(name, short) }
     }
 
     /// Creates a new optional argument with the given flag name.
-    /// (ex "help" for --help).
+    ///
+    /// The `name` is without the `--` prefix.
     pub fn named(name: &'a str) -> OptArg<'a> {
         OptArg { name: OptName::Normal(name) }
     }
 
     /// Returns the option name of this argument.
-    /// This is the long name without prefixing dashes (eg: "help" for "--help").
-    pub fn option_name(&self) -> Option<OptName<'a>> {
+    ///
+    /// This is the long name without prefixing dashes (e.g. `help` for `--help`).
+    pub fn option_name(self) -> Option<OptName<'a>> {
         use self::ArgType::*;
         match self.argtype {
             OptSingle(optname) |
@@ -74,7 +75,7 @@ impl<'a> Arg<'a> {
     }
 
     /// Returns the long name of this argument.
-    pub fn name(&self) -> &'a str {
+    pub fn name(self) -> &'a str {
         use self::ArgType::*;
         match self.argtype {
             Single(name) | ZeroPlus(name) | OnePlus(name) => name,
@@ -87,38 +88,30 @@ impl<'a> Arg<'a> {
         }
     }
 
-    /// Returns the parameter name of this argument definition.
-    pub fn param(&self) -> &'a str {
-        if let Some(param) = self.param {
-            param
-        } else {
-            ""
-        }
+    /// Returns the parameter name for this argument definition.
+    pub fn param(self) -> Option<&'a str> {
+        self.param
     }
 
-    /// Returns the help text of this argument definition.
-    pub fn help(&self) -> &'a str {
-        if let Some(help) = self.help {
-            help
-        } else {
-            ""
-        }
+    /// Returns the previously set help text for this argument definition.
+    pub fn help(self) -> Option<&'a str> {
+        self.help
     }
 
-    /// Adds a parameter name to this argument definition.
-    pub fn add_param(mut self, name: &'a str) -> Self {
+    /// Sets the parameter name for this argument definition.
+    pub fn set_param(mut self, name: &'a str) -> Self {
         self.param = Some(name);
         self
     }
 
-    /// Adds a help text to this argument definition.
-    pub fn add_help(mut self, text: &'a str) -> Self {
+    /// Sets the help text for this argument definition.
+    pub fn set_help(mut self, text: &'a str) -> Self {
         self.help = Some(text);
         self
     }
 }
 
-pub fn internal_get_raw<'a>(arg: Arg<'a>) -> ArgType<'a> {
+pub fn internal_get_raw(arg: Arg) -> ArgType {
     arg.argtype
 }
 

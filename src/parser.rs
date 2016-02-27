@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use common::{FlagName, OptName};
 use arg::{self, Arg};
 
-
 /// The possible types of an optional argument.
 #[derive(Debug, Clone)]
 enum OptType {
@@ -12,7 +11,7 @@ enum OptType {
 }
 
 /// Returns the flag names that might denote this option.
-fn optional_flag_names<'a>(name: OptName<'a>) -> Vec<FlagName<'a>> {
+fn optional_flag_names(name: OptName) -> Vec<FlagName> {
     use common::FlagName::*;
     match name {
         OptName::Normal(long) => vec![Long(long)],
@@ -27,21 +26,18 @@ enum ReqType {
     OnePlus,
 }
 
-
-
 /// Creates an argument name (fat pointer) to the given argument if it is
 /// valid as such.
-fn argument_type<'a>(arg: &'a str) -> GivenArgument<'a> {
+fn argument_type(arg: &str) -> GivenArgument {
     use self::GivenArgument::*;
     use common::FlagName::*;
     if arg.starts_with("--") {
         Flag(Long(&arg[2..]))
-
-    } else if arg.starts_with("-") {
+    } else if arg.starts_with('-') {
         if arg.len() == 2 {
             Flag(Short(arg.chars().nth(1).unwrap()))
         } else {
-            ShortFlags(arg.chars().skip(1).map(|ch| Short(ch)).collect())
+            ShortFlags(arg.chars().skip(1).map(Short).collect())
         }
 
     } else {
@@ -186,7 +182,7 @@ impl<'a> Parse<'a> {
         }
 
         if self.parser.switches.contains(&opt_name) {
-            self.found_flags.insert(opt_name.clone());
+            self.found_flags.insert(opt_name);
             return Ok(Switch { name: opt_name.name() });
 
         } else if self.parser.interrupts.contains(&opt_name) {
@@ -257,15 +253,15 @@ impl<'a> Parse<'a> {
             }
         }
         // Return the trail
-        return Some(Ok(Trail { values: self.trail.clone() }));
+        Some(Ok(Trail { values: self.trail.clone() }))
     }
 
     /// Attempts to find enough parameters for the given option type.
-    fn find_parameters<'b>(&mut self,
-                           arg: &'a str,
-                           opt_type: &OptType,
-                           opt_name: OptName<'a>)
-                           -> Result<StructuredArgument<'a>, ParseError<'a>> {
+    fn find_parameters(&mut self,
+                       arg: &'a str,
+                       opt_type: &OptType,
+                       opt_name: OptName<'a>)
+                       -> Result<StructuredArgument<'a>, ParseError<'a>> {
         use self::ParseError::*;
         use self::StructuredArgument::*;
         use self::GivenArgument::Value;
@@ -278,12 +274,12 @@ impl<'a> Parse<'a> {
                     return Err(MissingParameter { arg: arg });
                 }
                 if let Value(value) = argument_type(args[0]) {
-                    return Ok(Single {
+                    Ok(Single {
                         name: opt_name.name(),
                         parameter: value,
-                    });
+                    })
                 } else {
-                    return Err(MissingParameter { arg: arg });
+                    Err(MissingParameter { arg: arg })
                 }
             }
             OptType::ZeroPlus => {
@@ -298,10 +294,10 @@ impl<'a> Parse<'a> {
                                 .count();
                 let params = &self.args[self.index..self.index + count];
                 self.index += count;
-                return Ok(Multiple {
+                Ok(Multiple {
                     name: opt_name.name(),
                     parameters: params,
-                });
+                })
             }
             OptType::OnePlus => {
                 if args.len() < 1 {
@@ -311,8 +307,7 @@ impl<'a> Parse<'a> {
                 } else {
                     return Err(MissingParameter { arg: arg });
                 }
-                let count = 1 +
-                            args.iter()
+                let count = args.iter()
                                 .skip(1)
                                 .take_while(|arg| {
                                     if let Value(_) = argument_type(arg) {
@@ -321,13 +316,13 @@ impl<'a> Parse<'a> {
                                         false
                                     }
                                 })
-                                .count();
+                                .count() + 1;
                 let params = &self.args[self.index..self.index + count];
                 self.index += count;
-                return Ok(Multiple {
+                Ok(Multiple {
                     name: opt_name.name(),
                     parameters: params,
-                });
+                })
             }
         }
     }
@@ -347,14 +342,13 @@ impl<'a> Iterator for Parse<'a> {
         }
 
         // Check for leftover short flag from grouped short switches eg. '-abc'
-        if self.leftover_short_flags.len() > 0 {
+        if !self.leftover_short_flags.is_empty() {
             let flag = self.leftover_short_flags.remove(0);
             let arg = self.args[self.index - 1];
             match self.validate_grouped_short(flag, arg) {
                 Err(err) => return Some(Err(err)),
-                _ => {}
+                Ok(_) => return Some(self.parse_flag(flag, arg)),
             }
-            return Some(self.parse_flag(flag, arg));
         }
 
         // Check for a leftover passalong argument
@@ -397,9 +391,8 @@ impl<'a> Iterator for Parse<'a> {
                     let flag = self.leftover_short_flags.remove(0);
                     match self.validate_grouped_short(flag, arg) {
                         Err(err) => return Some(Err(err)),
-                        _ => {}
+                        Ok(_) => return Some(self.parse_flag(flag, arg)),
                     }
-                    return Some(self.parse_flag(flag, arg));
                 }
             }
         }
@@ -449,15 +442,15 @@ impl<'a> Parser<'a> {
         if let Some(optname) = arg.option_name() {
             let names = optional_flag_names(optname);
 
-            for name in names.iter() {
+            for name in &names {
                 if self.used_flags.contains(name) {
                     return Err(format!("The flag '{}' is already defined", name));
                 }
             }
 
-            for name in names.iter() {
-                self.used_flags.insert(name.clone());
-                self.aliases.insert(name.clone(), optname.clone());
+            for name in &names {
+                self.used_flags.insert(*name);
+                self.aliases.insert(*name, optname);
             }
         }
 
@@ -474,7 +467,7 @@ impl<'a> Parser<'a> {
             ZeroPlus(name) => {
                 match self.trail {
                     Some(_) => {
-                        return Err(format!("A trailing argument has already been set"));
+                        return Err("A trailing argument has already been set".into());
                     }
                     None => {
                         self.trail = Some((name, ReqType::ZeroPlus));
@@ -484,7 +477,7 @@ impl<'a> Parser<'a> {
             OnePlus(name) => {
                 match self.trail {
                     Some(_) => {
-                        return Err(format!("A trailing argument has already been set"));
+                        return Err("A trailing argument has already been set".into());
                     }
                     None => {
                         self.trail = Some((name, ReqType::OnePlus));
