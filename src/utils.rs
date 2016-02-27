@@ -1,4 +1,4 @@
-use arg::{self};
+use arg;
 use parser::{Parser, internal_get_definitions};
 
 
@@ -15,7 +15,7 @@ fn align_lines(lines: &mut Vec<Vec<String>>, padding: Option<char>) {
             }
         }
     }
-    
+
     let padding = if let Some(pad) = padding {
         pad
     } else {
@@ -23,7 +23,9 @@ fn align_lines(lines: &mut Vec<Vec<String>>, padding: Option<char>) {
     };
     // Pad the lines
     for line in lines.iter_mut() {
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
         for (i, item) in line.iter_mut().enumerate() {
             let target_width = widths[i];
             while item.len() < target_width {
@@ -38,10 +40,10 @@ fn align_lines(lines: &mut Vec<Vec<String>>, padding: Option<char>) {
 pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
     use arg::ArgType::*;
     use common::OptName::*;
-    
+
     let args = internal_get_definitions(parser);
     let mut help_message = String::new();
-    
+
     let mut required = Vec::new();
     let mut interrupting = Vec::new();
     let mut passing = Vec::new();
@@ -51,35 +53,35 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
         match argtype {
             Single(_) | ZeroPlus(_) | OnePlus(_) => {
                 required.push((i, argtype));
-            },
+            }
             Interrupt(_) => {
                 interrupting.push((i, argtype));
-            },
+            }
             OptSingle(_) | OptZeroPlus(_) | OptOnePlus(_) | Switch(_) => {
                 optional.push((i, argtype));
-            },
+            }
             PassAlong(_) => {
                 passing.push((i, argtype));
             }
         }
     }
-    
-    if ! required.is_empty() {
+
+    if !required.is_empty() {
         help_message.push_str("Required arguments:\n");
-    
+
         let mut lines = Vec::new();
         let mut help_texts = Vec::new();
         for (i, argtype) in required {
             match argtype {
                 Single(name) => {
                     lines.push(vec![name.to_owned()]);
-                },
+                }
                 OnePlus(name) => {
                     lines.push(vec![format!("{0} [{0}, ..]", name)]);
-                },
+                }
                 ZeroPlus(name) => {
                     lines.push(vec![format!("[{}, ..]", name)]);
-                },
+                }
                 _ => unreachable!(),
             }
             help_texts.push(args[i].help());
@@ -96,9 +98,9 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
             help_message.push_str("\n");
         }
     }
-    
-    if ! interrupting.is_empty() {
-        if ! help_message.is_empty() {
+
+    if !interrupting.is_empty() {
+        if !help_message.is_empty() {
             help_message.push_str("\n");
         }
         help_message.push_str("Interrupts:\n");
@@ -108,19 +110,15 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
             match argtype {
                 Interrupt(Normal(long)) => {
                     lines.push(vec![format!("--{}", long)]);
-                },
+                }
                 Interrupt(NormalAndShort(long, short)) => {
-                    lines.push(vec![
-                        format!("--{}", long),
-                        "|".to_owned(),
-                        format!("-{}", short)
-                    ]);
-                },
+                    lines.push(vec![format!("--{}", long), "|".to_owned(), format!("-{}", short)]);
+                }
                 _ => unreachable!(),
             };
             help_texts.push(args[i].help());
         }
-        
+
         align_lines(&mut lines, None);
         let mut combined = Vec::new();
         for (i, line) in lines.iter().enumerate() {
@@ -141,14 +139,14 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
             help_message.push_str("\n");
         }
     }
-    
-    if ! optional.is_empty() {
+
+    if !optional.is_empty() {
         // Add a separating space
-        if ! help_message.is_empty() {
+        if !help_message.is_empty() {
             help_message.push_str("\n");
         }
         help_message.push_str("Optional arguments:\n");
-    
+
         let mut lines = Vec::new();
         let mut help_texts = Vec::new();
         for (i, argtype) in optional {
@@ -158,54 +156,40 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
             }
             match argtype {
                 OptSingle(Normal(long)) => {
-                    lines.push(vec![
-                        format!("--{}{}", long, param)
-                    ]);
-                },
+                    lines.push(vec![format!("--{}{}", long, param)]);
+                }
                 OptSingle(NormalAndShort(long, short)) => {
-                    lines.push(vec![
-                        format!("--{}", long),
-                        "|".to_owned(),
-                        format!("-{}", short),
-                        param
-                    ]);
-                },
+                    lines.push(vec![format!("--{}", long),
+                                    "|".to_owned(),
+                                    format!("-{}", short),
+                                    param]);
+                }
                 OptZeroPlus(Normal(long)) => {
-                    lines.push(vec![
-                        format!("--{}[{}, ..]", long, param)
-                    ]);
-                },
+                    lines.push(vec![format!("--{}[{}, ..]", long, param)]);
+                }
                 OptZeroPlus(NormalAndShort(long, short)) => {
-                    lines.push(vec![
-                        format!("--{}", long),
-                        "|".to_owned(),
-                        format!("-{}", short),
-                        format!("[{}, ..]", param)
-                    ]);
-                },
+                    lines.push(vec![format!("--{}", long),
+                                    "|".to_owned(),
+                                    format!("-{}", short),
+                                    format!("[{}, ..]", param)]);
+                }
                 OptOnePlus(Normal(long)) => {
                     lines.push(vec![
                         format!("--{0} {1} [{1}, ..]", long, param),
                     ]);
-                },
+                }
                 OptOnePlus(NormalAndShort(long, short)) => {
-                    lines.push(vec![
-                        format!("--{}", long), 
-                        "|".to_owned(),
-                        format!("-{}", short),
-                        format!("{0} [{0}, ..]", param)
-                    ]);
-                },
+                    lines.push(vec![format!("--{}", long),
+                                    "|".to_owned(),
+                                    format!("-{}", short),
+                                    format!("{0} [{0}, ..]", param)]);
+                }
                 Switch(Normal(long)) => {
                     lines.push(vec![format!("--{}", long)]);
-                },
+                }
                 Switch(NormalAndShort(long, short)) => {
-                    lines.push(vec![
-                        format!("--{}", long), 
-                        "|".to_owned(),
-                        format!("-{}", short)
-                    ]);
-                },
+                    lines.push(vec![format!("--{}", long), "|".to_owned(), format!("-{}", short)]);
+                }
                 _ => unreachable!(),
             };
             help_texts.push(args[i].help());
@@ -231,14 +215,14 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
             help_message.push_str("\n");
         }
     }
-    
-    if ! passing.is_empty() {
+
+    if !passing.is_empty() {
         // Add a separating space
-        if ! help_message.is_empty() {
+        if !help_message.is_empty() {
             help_message.push_str("\n");
         }
         help_message.push_str("Pass-alongs:\n");
-    
+
         let mut lines = Vec::new();
         let mut help_texts = Vec::new();
         for (i, argtype) in passing {
@@ -248,23 +232,19 @@ pub fn generate_help<'a>(parser: &Parser<'a>) -> String {
             }
             match argtype {
                 PassAlong(Normal(long)) => {
-                    lines.push(vec![
-                        format!("--{}{}...", long, param)
-                    ]);
-                },
+                    lines.push(vec![format!("--{}{}...", long, param)]);
+                }
                 PassAlong(NormalAndShort(long, short)) => {
-                    lines.push(vec![
-                        format!("--{}", long), 
-                        "|".to_owned(),
-                        format!("-{}", short),
-                        format!("{}...", param)
-                    ]);
-                },
+                    lines.push(vec![format!("--{}", long),
+                                    "|".to_owned(),
+                                    format!("-{}", short),
+                                    format!("{}...", param)]);
+                }
                 _ => unreachable!(),
             }
             help_texts.push(args[i].help());
         }
-        
+
         align_lines(&mut lines, None);
         let mut combined = Vec::new();
         for (i, line) in lines.iter().enumerate() {
